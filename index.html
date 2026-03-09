@@ -1,0 +1,666 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>LlamaChat — Private AI in Your Browser</title>
+  <meta name="description" content="Run AI models 100% in your browser. No servers, no API keys, no data leaves your device.">
+
+  <!-- Performance: Preconnect + Preload -->
+  <link rel="preconnect" href="https://esm.run" crossorigin>
+  <link rel="preconnect" href="https://huggingface.co" crossorigin>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link rel="modulepreload" href="./worker.js">
+  <link href="https://fonts.googleapis.com/css2?family=Rajdhani:wght@600;700&family=Inter:wght@400;500&display=swap" rel="stylesheet">
+
+  <style>
+    /* ── CSS Reset & Variables ──────────────────────────────── */
+    *, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; }
+
+    :root {
+      --bg:           #0a0a0a;
+      --surface:      #111111;
+      --surface2:     #1a1a1a;
+      --accent:       #c8f000;
+      --accent-dim:   #8aaa00;
+      --accent-glow:  rgba(200, 240, 0, 0.3);
+      --text:         #e8e8e8;
+      --text-muted:   #555555;
+      --user-bubble:  #1c1c1c;
+      --bot-bubble:   #0d0d0d;
+      --border:       #222222;
+      --error:        #ff4444;
+      --success:      #00ff88;
+    }
+
+    html, body {
+      height: 100%;
+      overflow: hidden;
+      font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      -webkit-font-smoothing: antialiased;
+      -moz-osx-font-smoothing: grayscale;
+    }
+
+    /* ── Loading Overlay ───────────────────────────────────── */
+    .overlay {
+      position: fixed;
+      inset: 0;
+      z-index: 1000;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      background:
+        repeating-linear-gradient(
+          0deg,
+          transparent,
+          transparent 2px,
+          rgba(0,0,0,0.08) 2px,
+          rgba(0,0,0,0.08) 4px
+        ),
+        var(--bg);
+      transition: opacity 0.5s ease;
+    }
+
+    .overlay.fade-out {
+      opacity: 0;
+      pointer-events: none;
+    }
+
+    .overlay-logo {
+      font-family: 'Rajdhani', sans-serif;
+      font-weight: 700;
+      font-size: 3rem;
+      color: var(--accent);
+      letter-spacing: 2px;
+      text-shadow: 0 0 20px var(--accent-glow), 0 0 40px var(--accent-glow);
+      margin-bottom: 4px;
+      user-select: none;
+    }
+
+    .overlay-subtitle {
+      font-size: 0.9rem;
+      color: var(--text-muted);
+      margin-bottom: 40px;
+    }
+
+    .overlay-percent {
+      font-family: 'Rajdhani', sans-serif;
+      font-weight: 700;
+      font-size: 5rem;
+      color: var(--accent);
+      text-shadow: 0 0 30px var(--accent-glow);
+      line-height: 1;
+      margin-bottom: 20px;
+    }
+
+    /* ── GTA Progress Bar ──────────────────────────────────── */
+    .progress-bar-track {
+      width: 380px;
+      max-width: 85vw;
+      height: 22px;
+      background: var(--surface2);
+      border: 1px solid var(--border);
+      border-radius: 3px;
+      overflow: hidden;
+      margin-bottom: 24px;
+    }
+
+    .progress-bar-fill {
+      height: 100%;
+      width: 0%;
+      background: var(--accent);
+      background-image: repeating-linear-gradient(
+        90deg,
+        transparent,
+        transparent 28px,
+        rgba(0,0,0,0.4) 28px,
+        rgba(0,0,0,0.4) 32px
+      );
+      box-shadow: 0 0 12px var(--accent-glow),
+                  0 0 30px var(--accent-glow);
+      transition: width 0.3s ease;
+      animation: pulse-glow 1.5s ease-in-out infinite alternate;
+    }
+
+    @keyframes pulse-glow {
+      from { box-shadow: 0 0 8px var(--accent-glow); }
+      to   { box-shadow: 0 0 25px var(--accent-glow), 0 0 50px var(--accent-glow); }
+    }
+
+    .overlay-status {
+      font-size: 0.95rem;
+      color: var(--text);
+      margin-bottom: 6px;
+    }
+
+    .overlay-stats {
+      font-size: 0.82rem;
+      color: var(--text-muted);
+      margin-bottom: 12px;
+      font-variant-numeric: tabular-nums;
+    }
+
+    .overlay-cache-note {
+      font-size: 0.78rem;
+      color: var(--success);
+      opacity: 0;
+      transition: opacity 0.5s ease;
+    }
+
+    /* ── Overlay Error ─────────────────────────────────────── */
+    .overlay-error {
+      display: none;
+      text-align: center;
+      margin-top: 20px;
+      padding: 16px 24px;
+      background: rgba(255, 68, 68, 0.08);
+      border: 1px solid rgba(255, 68, 68, 0.25);
+      border-radius: 8px;
+      max-width: 400px;
+    }
+
+    .overlay-error-text {
+      color: var(--error);
+      font-size: 0.88rem;
+      margin-bottom: 12px;
+      word-break: break-word;
+    }
+
+    .overlay-error button {
+      padding: 8px 20px;
+      border: none;
+      border-radius: 4px;
+      font-family: 'Inter', sans-serif;
+      font-weight: 500;
+      font-size: 0.85rem;
+      cursor: pointer;
+      margin: 0 4px;
+      transition: background 0.2s;
+    }
+
+    #overlay-retry-btn {
+      background: var(--accent);
+      color: #000;
+    }
+    #overlay-retry-btn:hover { background: #d4ff00; }
+
+    #overlay-fallback-btn {
+      background: var(--surface2);
+      color: var(--text);
+      border: 1px solid var(--border);
+    }
+    #overlay-fallback-btn:hover { background: #222; }
+
+    /* ── WebGPU Error Screen ───────────────────────────────── */
+    .webgpu-error {
+      position: fixed;
+      inset: 0;
+      z-index: 1001;
+      display: none;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      background: var(--bg);
+      text-align: center;
+      padding: 24px;
+    }
+
+    .webgpu-error h1 {
+      font-family: 'Rajdhani', sans-serif;
+      font-size: 2.4rem;
+      color: var(--error);
+      margin-bottom: 12px;
+    }
+
+    .webgpu-error p {
+      color: var(--text-muted);
+      font-size: 1rem;
+      max-width: 440px;
+      line-height: 1.6;
+      margin-bottom: 20px;
+    }
+
+    .webgpu-error a {
+      display: inline-block;
+      padding: 12px 28px;
+      background: var(--accent);
+      color: #000;
+      font-weight: 600;
+      font-size: 1rem;
+      text-decoration: none;
+      border-radius: 6px;
+      transition: background 0.2s;
+    }
+    .webgpu-error a:hover { background: #d4ff00; }
+
+    /* ── Chat Container ────────────────────────────────────── */
+    .chat-container {
+      display: flex;
+      flex-direction: column;
+      height: 100vh;
+      max-width: 800px;
+      margin: 0 auto;
+      padding: 0;
+    }
+
+    /* ── Header ────────────────────────────────────────────── */
+    .chat-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 12px 20px;
+      border-bottom: 1px solid var(--border);
+      background: var(--surface);
+      flex-shrink: 0;
+    }
+
+    .chat-header-logo {
+      font-family: 'Rajdhani', sans-serif;
+      font-weight: 700;
+      font-size: 1.5rem;
+      color: var(--accent);
+      letter-spacing: 1px;
+    }
+
+    .chat-header-badge {
+      font-size: 0.72rem;
+      color: var(--text-muted);
+      background: var(--surface2);
+      padding: 3px 10px;
+      border-radius: 20px;
+      border: 1px solid var(--border);
+    }
+
+    /* ── Messages Area ─────────────────────────────────────── */
+    .messages-area {
+      flex: 1;
+      overflow-y: auto;
+      padding: 20px;
+      display: flex;
+      flex-direction: column;
+      gap: 16px;
+      scroll-behavior: smooth;
+    }
+
+    .messages-area::-webkit-scrollbar { width: 6px; }
+    .messages-area::-webkit-scrollbar-track { background: transparent; }
+    .messages-area::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
+    .messages-area::-webkit-scrollbar-thumb:hover { background: #333; }
+
+    /* ── Welcome Card ──────────────────────────────────────── */
+    .welcome-card {
+      display: block;
+      align-self: center;
+      text-align: center;
+      padding: 40px 32px;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 16px;
+      margin: auto 0;
+      max-width: 420px;
+      width: 100%;
+    }
+
+    .welcome-icon {
+      font-size: 3rem;
+      margin-bottom: 8px;
+    }
+
+    .welcome-title {
+      font-family: 'Rajdhani', sans-serif;
+      font-weight: 700;
+      font-size: 1.8rem;
+      color: var(--accent);
+      margin-bottom: 16px;
+    }
+
+    .welcome-text {
+      font-size: 0.92rem;
+      color: var(--text-muted);
+      line-height: 1.7;
+      margin-bottom: 16px;
+    }
+
+    .welcome-brand {
+      display: inline-block;
+      padding: 4px 14px;
+      background: var(--surface2);
+      border: 1px solid var(--border);
+      border-radius: 20px;
+      font-size: 0.82rem;
+      color: var(--accent-dim);
+    }
+
+    /* ── Message Bubbles ───────────────────────────────────── */
+    .msg-bubble {
+      max-width: 85%;
+      padding: 12px 16px;
+      border-radius: 12px;
+      animation: fadeIn 0.2s ease;
+    }
+
+    @keyframes fadeIn {
+      from { opacity: 0; transform: translateY(6px); }
+      to   { opacity: 1; transform: translateY(0); }
+    }
+
+    .msg-user {
+      align-self: flex-end;
+      background: var(--user-bubble);
+      border-left: 3px solid var(--accent);
+    }
+
+    .msg-bot {
+      align-self: flex-start;
+      background: var(--bot-bubble);
+      border: 1px solid var(--border);
+    }
+
+    .msg-error {
+      align-self: flex-start;
+      background: rgba(255, 68, 68, 0.06);
+      border: 1px solid rgba(255, 68, 68, 0.25);
+      max-width: 85%;
+      padding: 12px 16px;
+      border-radius: 12px;
+    }
+
+    .msg-label {
+      font-size: 0.72rem;
+      font-weight: 500;
+      color: var(--text-muted);
+      margin-bottom: 4px;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+    }
+
+    .msg-content {
+      font-size: 0.92rem;
+      line-height: 1.65;
+      word-wrap: break-word;
+      overflow-wrap: break-word;
+    }
+
+    .msg-content pre {
+      background: var(--surface2);
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      padding: 10px 14px;
+      margin: 8px 0;
+      overflow-x: auto;
+      font-size: 0.84rem;
+    }
+
+    .msg-content code {
+      background: var(--surface2);
+      padding: 1px 5px;
+      border-radius: 3px;
+      font-size: 0.86em;
+    }
+
+    .msg-content pre code {
+      background: none;
+      padding: 0;
+    }
+
+    .msg-stats {
+      font-size: 0.72rem;
+      color: var(--text-muted);
+      margin-top: 8px;
+      font-variant-numeric: tabular-nums;
+    }
+
+    /* ── Blinking Cursor ───────────────────────────────────── */
+    .cursor {
+      color: var(--accent);
+      animation: blink 0.6s step-end infinite;
+      font-weight: 700;
+    }
+
+    @keyframes blink {
+      50% { opacity: 0; }
+    }
+
+    /* ── Error Bubble Buttons ──────────────────────────────── */
+    .retry-btn, .retry-lighter-btn {
+      display: inline-block;
+      margin-top: 8px;
+      margin-right: 6px;
+      padding: 5px 14px;
+      border: none;
+      border-radius: 4px;
+      font-family: 'Inter', sans-serif;
+      font-size: 0.8rem;
+      font-weight: 500;
+      cursor: pointer;
+      transition: background 0.2s;
+    }
+
+    .retry-btn {
+      background: var(--surface2);
+      color: var(--text);
+      border: 1px solid var(--border);
+    }
+    .retry-btn:hover { background: #222; }
+
+    .retry-lighter-btn {
+      background: var(--accent);
+      color: #000;
+    }
+    .retry-lighter-btn:hover { background: #d4ff00; }
+
+    /* ── Input Area ────────────────────────────────────────── */
+    .input-area {
+      flex-shrink: 0;
+      border-top: 1px solid var(--border);
+      background: var(--surface);
+      padding: 12px 16px;
+    }
+
+    .device-info {
+      font-size: 0.72rem;
+      color: var(--text-muted);
+      margin-bottom: 10px;
+      padding: 0 4px;
+      font-variant-numeric: tabular-nums;
+    }
+
+    .input-row {
+      display: flex;
+      align-items: flex-end;
+      gap: 8px;
+    }
+
+    .model-select {
+      flex-shrink: 0;
+      background: var(--surface2);
+      color: var(--text);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 8px 10px;
+      font-family: 'Inter', sans-serif;
+      font-size: 0.78rem;
+      outline: none;
+      cursor: pointer;
+      max-width: 220px;
+      transition: border-color 0.2s;
+    }
+
+    .model-select:hover { border-color: var(--accent-dim); }
+    .model-select:focus { border-color: var(--accent); }
+
+    .chat-input {
+      flex: 1;
+      background: var(--surface2);
+      color: var(--text);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 10px 14px;
+      font-family: 'Inter', sans-serif;
+      font-size: 0.92rem;
+      line-height: 1.4;
+      resize: none;
+      outline: none;
+      min-height: 42px;
+      max-height: 120px;
+      transition: border-color 0.2s;
+    }
+
+    .chat-input::placeholder { color: var(--text-muted); }
+    .chat-input:hover { border-color: var(--accent-dim); }
+    .chat-input:focus { border-color: var(--accent); }
+
+    .send-btn {
+      flex-shrink: 0;
+      background: var(--accent);
+      color: #000;
+      border: none;
+      border-radius: 8px;
+      padding: 10px 20px;
+      font-family: 'Inter', sans-serif;
+      font-weight: 600;
+      font-size: 0.9rem;
+      cursor: pointer;
+      transition: background 0.2s, opacity 0.2s;
+      white-space: nowrap;
+      min-height: 42px;
+    }
+
+    .send-btn:hover:not(:disabled) { background: #d4ff00; }
+    .send-btn:disabled {
+      opacity: 0.5;
+      cursor: not-allowed;
+    }
+
+    .dot-pulse {
+      display: inline-block;
+      animation: dotPulse 1s ease-in-out infinite;
+    }
+
+    @keyframes dotPulse {
+      0%, 100% { opacity: 0.3; }
+      50% { opacity: 1; }
+    }
+
+    /* ── Pulsing loading animation for send button ─────────── */
+    .send-btn:disabled .send-btn-text {
+      animation: pulseOpacity 1.5s ease-in-out infinite;
+    }
+
+    @keyframes pulseOpacity {
+      0%, 100% { opacity: 0.5; }
+      50% { opacity: 1; }
+    }
+
+    /* ── Responsive ────────────────────────────────────────── */
+    @media (max-width: 600px) {
+      .overlay-logo { font-size: 2.2rem; }
+      .overlay-percent { font-size: 3.5rem; }
+      .progress-bar-track { width: 90vw; }
+      .chat-header { padding: 10px 14px; }
+      .messages-area { padding: 14px; }
+      .welcome-card { padding: 28px 20px; }
+      .model-select { max-width: 140px; font-size: 0.72rem; }
+      .input-row { gap: 6px; }
+      .send-btn { padding: 10px 14px; }
+    }
+
+    @media (max-width: 400px) {
+      .model-select { display: none; }
+    }
+  </style>
+</head>
+<body>
+
+  <!-- ════════════════════════════════════════════════════════
+       WebGPU Error Screen (hidden by default)
+       ════════════════════════════════════════════════════════ -->
+  <div class="webgpu-error" id="webgpu-error">
+    <h1>WebGPU Not Available</h1>
+    <p>
+      LlamaChat needs WebGPU to run AI models directly in your browser.
+      Your current browser does not support WebGPU.
+    </p>
+    <p>
+      Please use <strong>Google Chrome 113+</strong> or <strong>Microsoft Edge 113+</strong>
+      on a device with a compatible GPU.
+    </p>
+    <a href="https://www.google.com/chrome/" rel="noopener noreferrer">Download Chrome</a>
+  </div>
+
+  <!-- ════════════════════════════════════════════════════════
+       Loading Overlay (visible on start)
+       ════════════════════════════════════════════════════════ -->
+  <div class="overlay" id="loading-overlay">
+    <div class="overlay-logo" id="overlay-title">LlamaChat</div>
+    <div class="overlay-subtitle" id="overlay-subtitle">Powered by Meta &middot; Runs in your browser</div>
+
+    <div class="overlay-percent" id="overlay-percent">0%</div>
+
+    <div class="progress-bar-track">
+      <div class="progress-bar-fill" id="progress-bar-fill"></div>
+    </div>
+
+    <div class="overlay-status" id="overlay-status">Detecting hardware...</div>
+    <div class="overlay-stats" id="overlay-stats"></div>
+    <div class="overlay-cache-note" id="overlay-cache-note"></div>
+
+    <div class="overlay-error" id="overlay-error">
+      <div class="overlay-error-text" id="overlay-error-text"></div>
+      <button id="overlay-retry-btn">Retry</button>
+      <button id="overlay-fallback-btn">Use Lighter Model</button>
+    </div>
+  </div>
+
+  <!-- ════════════════════════════════════════════════════════
+       Chat Application
+       ════════════════════════════════════════════════════════ -->
+  <div class="chat-container" id="chat-container">
+
+    <!-- Header -->
+    <div class="chat-header">
+      <div class="chat-header-logo">LlamaChat</div>
+      <div class="chat-header-badge">100% Private &middot; On-Device AI</div>
+    </div>
+
+    <!-- Messages -->
+    <div class="messages-area" id="messages-area">
+      <div class="welcome-card" id="welcome-card">
+        <div class="welcome-icon">&#129433;</div>
+        <div class="welcome-title">LlamaChat</div>
+        <div class="welcome-text">
+          Your private AI assistant<br>
+          Runs 100% on your device<br>
+          No internet needed after model loads
+        </div>
+        <div class="welcome-brand" id="welcome-brand">Powered by Meta</div>
+      </div>
+    </div>
+
+    <!-- Input -->
+    <div class="input-area" id="input-area">
+      <div class="device-info" id="device-info">Detecting device...</div>
+      <div class="input-row">
+        <select class="model-select" id="model-select" title="Select AI Model"></select>
+        <textarea
+          class="chat-input"
+          id="chat-input"
+          placeholder="Loading model..."
+          rows="1"
+          disabled
+        ></textarea>
+        <button class="send-btn" id="send-btn" disabled>
+          <span id="send-btn-text">Initializing...</span>
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- App Script -->
+  <script src="./app.js"></script>
+</body>
+</html>
