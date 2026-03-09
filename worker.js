@@ -8,95 +8,93 @@ let currentModelId = null;
 
 const SYSTEM_PROMPT = `You are NeonLlama, a helpful, fast, and concise AI assistant running 100% privately in the user's browser on their own device. Powered by Meta Llama or Microsoft Phi depending on the selected model. Be friendly, accurate, and to the point. Never mention that you are running locally unless the user asks. Format responses cleanly.`;
 
+/* ── Model records with FULL model_lib URLs ────────────────── */
+// Base URL for pre-compiled WASM model libraries (matches WebLLM v0.2.80+ prebuilt config)
+const MODEL_LIB_BASE =
+  "https://raw.githubusercontent.com/mlc-ai/binary-mlc-llm-libs/main/web-llm-models/v0_2_80/";
+
+const OUR_MODEL_RECORDS = [
+  {
+    model: "https://huggingface.co/mlc-ai/Llama-3.2-1B-Instruct-q4f16_1-MLC",
+    model_id: "Llama-3.2-1B-Instruct-q4f16_1-MLC",
+    model_lib: MODEL_LIB_BASE + "Llama-3.2-1B-Instruct-q4f16_1-ctx4k_cs1k-webgpu.wasm",
+    vram_required_MB: 879,
+    low_resource_required: true,
+    required_features: ["shader-f16"],
+    overrides: { context_window_size: 4096 },
+  },
+  {
+    model: "https://huggingface.co/mlc-ai/Phi-3.5-mini-instruct-q4f16_1-MLC",
+    model_id: "Phi-3.5-mini-instruct-q4f16_1-MLC",
+    model_lib: MODEL_LIB_BASE + "Phi-3.5-mini-instruct-q4f16_1-ctx4k_cs1k-webgpu.wasm",
+    vram_required_MB: 3672,
+    low_resource_required: false,
+    overrides: { context_window_size: 4096 },
+  },
+  {
+    model: "https://huggingface.co/mlc-ai/Llama-3.1-8B-Instruct-q4f16_1-MLC",
+    model_id: "Llama-3.1-8B-Instruct-q4f16_1-MLC",
+    // Note: WebLLM uses "Llama-3_1" (underscore) in WASM filename, not "Llama-3.1" (dot)
+    model_lib: MODEL_LIB_BASE + "Llama-3_1-8B-Instruct-q4f16_1-ctx4k_cs1k-webgpu.wasm",
+    vram_required_MB: 5001,
+    low_resource_required: false,
+    overrides: { context_window_size: 4096 },
+  },
+];
+
 /* ── Dynamic import WebLLM from CDN ────────────────────────── */
 let webllm = null;
 
 async function loadWebLLM() {
   if (webllm) return webllm;
 
-  // Try pinned stable version first, then latest
   const urls = [
-    "https://esm.run/@anthropic-ai/web-llm@0.2.78",
-    "https://esm.run/@mlc-ai/web-llm@0.2.78",
-    "https://esm.run/@mlc-ai/web-llm@0.2.73",
-    "https://esm.run/@mlc-ai/web-llm",
-    "https://cdn.jsdelivr.net/npm/@mlc-ai/web-llm@0.2.78/+esm",
     "https://cdn.jsdelivr.net/npm/@mlc-ai/web-llm/+esm",
+    "https://esm.run/@mlc-ai/web-llm",
   ];
 
   for (const url of urls) {
     try {
       const mod = await import(url);
-      // Verify the module has what we need
       if (mod.CreateMLCEngine || mod.MLCEngine) {
         webllm = mod;
         console.log("[Worker] WebLLM loaded from:", url);
-
-        // Debug: log what's available
-        const keys = Object.keys(mod).filter(k => !k.startsWith("_"));
-        console.log("[Worker] WebLLM exports:", keys.join(", "));
-        if (mod.prebuiltAppConfig) {
-          console.log("[Worker] prebuiltAppConfig.model_list length:", mod.prebuiltAppConfig?.model_list?.length);
-        } else {
-          console.log("[Worker] prebuiltAppConfig is NOT available in this build");
-        }
+        console.log("[Worker] Has CreateMLCEngine:", !!mod.CreateMLCEngine);
+        console.log("[Worker] Has MLCEngine:", !!mod.MLCEngine);
+        console.log("[Worker] Has prebuiltAppConfig:", !!mod.prebuiltAppConfig);
+        console.log("[Worker] prebuiltAppConfig.model_list:", mod.prebuiltAppConfig?.model_list?.length ?? "N/A");
         return webllm;
       }
-    } catch (_) {
-      continue;
+    } catch (e) {
+      console.warn("[Worker] CDN failed:", url, e.message);
     }
   }
 
   throw new Error("Failed to load WebLLM library. Check your internet connection.");
 }
 
-/* ── Build a manual model record for WebLLM ───────────────── */
-function buildModelRecord(modelId) {
-  // These are the HuggingFace model URLs and WASM lib names that WebLLM uses
-  // Model lib URLs are resolved by WebLLM from its model_lib_map or from HF
-  const MODEL_MAP = {
-    "Llama-3.2-1B-Instruct-q4f16_1-MLC": {
-      model: "https://huggingface.co/mlc-ai/Llama-3.2-1B-Instruct-q4f16_1-MLC",
-      model_id: "Llama-3.2-1B-Instruct-q4f16_1-MLC",
-      model_lib:
-        "Llama-3.2-1B-Instruct-q4f16_1-ctx4k_cs1k-webgpu.wasm",
-      vram_required_MB: 879,
-      low_resource_required: false,
-      overrides: { context_window_size: 4096 },
-    },
-    "Phi-3.5-mini-instruct-q4f16_1-MLC": {
-      model: "https://huggingface.co/mlc-ai/Phi-3.5-mini-instruct-q4f16_1-MLC",
-      model_id: "Phi-3.5-mini-instruct-q4f16_1-MLC",
-      model_lib:
-        "Phi-3.5-mini-instruct-q4f16_1-ctx4k_cs1k-webgpu.wasm",
-      vram_required_MB: 2520,
-      low_resource_required: false,
-      overrides: { context_window_size: 4096 },
-    },
-    "Llama-3.1-8B-Instruct-q4f16_1-MLC": {
-      model: "https://huggingface.co/mlc-ai/Llama-3.1-8B-Instruct-q4f16_1-MLC",
-      model_id: "Llama-3.1-8B-Instruct-q4f16_1-MLC",
-      model_lib:
-        "Llama-3.1-8B-Instruct-q4f16_1-ctx4k_cs1k-webgpu.wasm",
-      vram_required_MB: 5001,
-      low_resource_required: false,
-      overrides: { context_window_size: 4096 },
-    },
-  };
-  return MODEL_MAP[modelId] || null;
-}
+/* ── Build appConfig with our models injected ─────────────── */
+function buildAppConfig(lib) {
+  // Start from prebuilt config if available, otherwise empty
+  let modelList;
+  if (lib.prebuiltAppConfig && Array.isArray(lib.prebuiltAppConfig.model_list)) {
+    modelList = [...lib.prebuiltAppConfig.model_list];
+    console.log("[Worker] Using prebuilt config with", modelList.length, "models");
+  } else {
+    modelList = [];
+    console.log("[Worker] No prebuilt config, building from scratch");
+  }
 
-/* ── Model lib URL map — points to MLC's binary WASM libs ── */
-function buildModelLibMap() {
-  const BASE = "https://huggingface.co/niceduck/web-llm-model-libs/resolve/main/";
-  return {
-    "Llama-3.2-1B-Instruct-q4f16_1-ctx4k_cs1k-webgpu.wasm":
-      BASE + "Llama-3.2-1B-Instruct-q4f16_1-ctx4k_cs1k-webgpu.wasm",
-    "Phi-3.5-mini-instruct-q4f16_1-ctx4k_cs1k-webgpu.wasm":
-      BASE + "Phi-3.5-mini-instruct-q4f16_1-ctx4k_cs1k-webgpu.wasm",
-    "Llama-3.1-8B-Instruct-q4f16_1-ctx4k_cs1k-webgpu.wasm":
-      BASE + "Llama-3.1-8B-Instruct-q4f16_1-ctx4k_cs1k-webgpu.wasm",
-  };
+  // Ensure our models are in the list
+  const existingIds = new Set(modelList.map((m) => m.model_id));
+  for (const record of OUR_MODEL_RECORDS) {
+    if (!existingIds.has(record.model_id)) {
+      modelList.push(record);
+      console.log("[Worker] Injected model:", record.model_id);
+    }
+  }
+
+  return { model_list: modelList, useIndexedDBCache: true };
 }
 
 /* ── Progress tracking state ──────────────────────────────── */
@@ -181,39 +179,18 @@ self.onmessage = async function (e) {
 /* ── PRELOAD: Warm up worker, import WebLLM ───────────────── */
 async function handlePreload() {
   try {
-    const lib = await loadWebLLM();
-    let availableModels = [];
-    try {
-      if (lib.prebuiltAppConfig && Array.isArray(lib.prebuiltAppConfig.model_list)) {
-        availableModels = lib.prebuiltAppConfig.model_list.map(
-          (m) => m.model_id || m.model || m.local_id || ""
-        );
-      }
-    } catch (_) {}
-    send("PRELOAD_READY", { ready: true, availableModels });
+    await loadWebLLM();
+    send("PRELOAD_READY", { ready: true, availableModels: OUR_MODEL_RECORDS.map((m) => m.model_id) });
   } catch (err) {
     send("ERROR", { message: err.message, recoverable: true });
   }
 }
 
-/* ── Resolve model ID — just verify it's in our known set ─── */
-function resolveModelId(requestedId) {
-  const knownIds = [
-    "Llama-3.2-1B-Instruct-q4f16_1-MLC",
-    "Phi-3.5-mini-instruct-q4f16_1-MLC",
-    "Llama-3.1-8B-Instruct-q4f16_1-MLC",
-  ];
-  if (knownIds.includes(requestedId)) return requestedId;
-  return requestedId;
-}
-
 /* ── LOAD MODEL: Create MLC engine with progress ──────────── */
 async function handleLoadModel({ modelId }) {
   try {
-    const resolvedId = resolveModelId(modelId);
-
-    if (engine && currentModelId === resolvedId) {
-      send("LOAD_COMPLETE", { modelId: resolvedId, cached: true });
+    if (engine && currentModelId === modelId) {
+      send("LOAD_COMPLETE", { modelId, cached: true });
       return;
     }
 
@@ -238,41 +215,48 @@ async function handleLoadModel({ modelId }) {
       } catch (_) {}
     };
 
-    // Build engine config
-    // WebLLM's CreateMLCEngine does: appConfig.model_list.find(m => m.model_id === modelId)
-    // If prebuiltAppConfig is undefined (common with ESM CDN imports), this crashes.
-    // Fix: always provide appConfig with model_list.
-    let appConfig = null;
+    // Build a guaranteed-valid appConfig with model_list
+    const appConfig = buildAppConfig(lib);
 
-    // Option A: Use lib's built-in config if available
-    if (lib.prebuiltAppConfig && Array.isArray(lib.prebuiltAppConfig.model_list)) {
-      appConfig = lib.prebuiltAppConfig;
+    // Verify the requested model is in our config
+    const found = appConfig.model_list.find((m) => m.model_id === modelId);
+    if (!found) {
+      throw new Error(`Model "${modelId}" not found in config. Available: ${appConfig.model_list.map(m => m.model_id).slice(0, 5).join(", ")}...`);
     }
+    console.log("[Worker] Loading model:", modelId, "| model_lib:", found.model_lib?.substring(0, 80));
 
-    // Option B: Build our own appConfig with the model record
-    if (!appConfig) {
-      const modelRecord = buildModelRecord(resolvedId);
-      if (!modelRecord) {
-        throw new Error(`Model "${resolvedId}" not recognized. Try a different model.`);
+    // Strategy 1: CreateMLCEngine (standard API)
+    if (lib.CreateMLCEngine) {
+      try {
+        engine = await lib.CreateMLCEngine(modelId, {
+          initProgressCallback: progressCallback,
+          appConfig: appConfig,
+        });
+        currentModelId = modelId;
+        send("LOAD_COMPLETE", { modelId, cached: false });
+        return;
+      } catch (err) {
+        console.warn("[Worker] CreateMLCEngine failed:", err.message);
+        // If the error is about .find() or model_list, try Strategy 2
+        if (!lib.MLCEngine) throw err;
+        console.log("[Worker] Falling back to direct MLCEngine approach...");
       }
-
-      appConfig = {
-        model_list: [modelRecord],
-        useIndexedDBCache: true,
-      };
     }
 
-    appConfig.useIndexedDBCache = true;
+    // Strategy 2: Direct MLCEngine construction + reload
+    if (lib.MLCEngine) {
+      const eng = new lib.MLCEngine({ appConfig: appConfig });
+      if (eng.setInitProgressCallback) {
+        eng.setInitProgressCallback(progressCallback);
+      }
+      await eng.reload(modelId);
+      engine = eng;
+      currentModelId = modelId;
+      send("LOAD_COMPLETE", { modelId, cached: false });
+      return;
+    }
 
-    const engineConfig = {
-      initProgressCallback: progressCallback,
-      appConfig: appConfig,
-    };
-
-    engine = await lib.CreateMLCEngine(resolvedId, engineConfig);
-
-    currentModelId = resolvedId;
-    send("LOAD_COMPLETE", { modelId: resolvedId, cached: false });
+    throw new Error("WebLLM library loaded but no engine constructor available.");
   } catch (err) {
     engine = null;
     currentModelId = null;
