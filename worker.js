@@ -112,18 +112,59 @@ self.onmessage = async function (e) {
 /* ── PRELOAD: Warm up worker, import WebLLM ───────────────── */
 async function handlePreload() {
   try {
-    await loadWebLLM();
-    send("PRELOAD_READY", { ready: true });
+    const lib = await loadWebLLM();
+    // Send back available model list so main thread can verify IDs
+    let availableModels = [];
+    try {
+      if (lib.prebuiltAppConfig && lib.prebuiltAppConfig.model_list) {
+        availableModels = lib.prebuiltAppConfig.model_list.map((m) => m.model_id || m.model || m.local_id || "");
+      }
+    } catch (_) {}
+    send("PRELOAD_READY", { ready: true, availableModels });
   } catch (err) {
     send("ERROR", { message: err.message, recoverable: true });
+  }
+}
+
+/* ── Resolve model ID against available models ────────────── */
+function resolveModelId(requestedId, lib) {
+  try {
+    const modelList = lib.prebuiltAppConfig?.model_list;
+    if (!modelList || !Array.isArray(modelList)) return requestedId;
+
+    // Exact match
+    const exact = modelList.find((m) => (m.model_id || m.model || m.local_id) === requestedId);
+    if (exact) return requestedId;
+
+    // Fuzzy match: strip version suffixes and try partial match
+    const baseName = requestedId.replace(/-MLC$/, "").toLowerCase();
+    const fuzzy = modelList.find((m) => {
+      const id = (m.model_id || m.model || m.local_id || "").toLowerCase();
+      return id.includes(baseName) || baseName.includes(id.replace(/-mlc$/, ""));
+    });
+    if (fuzzy) return fuzzy.model_id || fuzzy.model || fuzzy.local_id;
+
+    // Try matching core model name (e.g., "Llama-3.2-1B-Instruct")
+    const coreName = requestedId.split("-q")[0].toLowerCase();
+    const coreMatch = modelList.find((m) => {
+      const id = (m.model_id || m.model || m.local_id || "").toLowerCase();
+      return id.includes(coreName);
+    });
+    if (coreMatch) return coreMatch.model_id || coreMatch.model || coreMatch.local_id;
+
+    return requestedId;
+  } catch (_) {
+    return requestedId;
   }
 }
 
 /* ── LOAD MODEL: Create MLC engine with progress ──────────── */
 async function handleLoadModel({ modelId }) {
   try {
-    if (engine && currentModelId === modelId) {
-      send("LOAD_COMPLETE", { modelId, cached: true });
+    const resolvedId = resolveModelId(modelId, await loadWebLLM());
+
+    if (engine && currentModelId === resolvedId) {
+      send("LOAD_COMPLETE", { modelId: resolvedId, cached: true });
       return;
     }
 
@@ -139,19 +180,34 @@ async function handleLoadModel({ modelId }) {
     lastProgressLoaded = 0;
 
     const progressCallback = (report) => {
-      const parsed = parseProgressReport(report);
-      send("LOAD_PROGRESS", parsed);
+      try {
+        const normalized = typeof report === "string"
+          ? { text: report, progress: 0 }
+          : report;
+        const parsed = parseProgressReport(normalized);
+        send("LOAD_PROGRESS", parsed);
+      } catch (_) {}
     };
 
-    engine = await lib.CreateMLCEngine(modelId, {
+    // Get available models from WebLLM if possible
+    let engineConfig = {
       initProgressCallback: progressCallback,
-      appConfig: {
-        useIndexedDBCache: true,
-      },
-    });
+    };
 
-    currentModelId = modelId;
-    send("LOAD_COMPLETE", { modelId, cached: false });
+    // Try to use prebuiltAppConfig for model resolution
+    if (lib.prebuiltAppConfig) {
+      engineConfig.appConfig = lib.prebuiltAppConfig;
+      engineConfig.appConfig.useIndexedDBCache = true;
+    } else if (lib.modelLibURLPrefix || lib.modelVersion) {
+      engineConfig.appConfig = { useIndexedDBCache: true };
+    } else {
+      engineConfig.appConfig = { useIndexedDBCache: true };
+    }
+
+    engine = await lib.CreateMLCEngine(resolvedId, engineConfig);
+
+    currentModelId = resolvedId;
+    send("LOAD_COMPLETE", { modelId: resolvedId, cached: false });
   } catch (err) {
     engine = null;
     currentModelId = null;
