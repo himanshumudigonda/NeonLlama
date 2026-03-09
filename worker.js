@@ -189,20 +189,21 @@ async function handleLoadModel({ modelId }) {
       } catch (_) {}
     };
 
-    // Get available models from WebLLM if possible
+    // Build engine config — CRITICAL: appConfig MUST have model_list or be omitted entirely
+    // WebLLM internally does appConfig.model_list.find() which crashes if model_list is undefined
     let engineConfig = {
       initProgressCallback: progressCallback,
     };
 
-    // Try to use prebuiltAppConfig for model resolution
-    if (lib.prebuiltAppConfig) {
-      engineConfig.appConfig = lib.prebuiltAppConfig;
-      engineConfig.appConfig.useIndexedDBCache = true;
-    } else if (lib.modelLibURLPrefix || lib.modelVersion) {
-      engineConfig.appConfig = { useIndexedDBCache: true };
-    } else {
-      engineConfig.appConfig = { useIndexedDBCache: true };
+    if (lib.prebuiltAppConfig && lib.prebuiltAppConfig.model_list) {
+      // Safe: prebuiltAppConfig has the full model registry
+      engineConfig.appConfig = {
+        ...lib.prebuiltAppConfig,
+        useIndexedDBCache: true,
+      };
     }
+    // If prebuiltAppConfig is missing, do NOT pass appConfig at all
+    // WebLLM will use its internal defaults which include model_list
 
     engine = await lib.CreateMLCEngine(resolvedId, engineConfig);
 
