@@ -1,185 +1,144 @@
-# 🦙 NeonLlama — Private AI Chat in Your Browser
+<div align="center">
 
-> **Run Meta Llama & Microsoft Phi models 100% in your browser. No servers. No API keys. No data ever leaves your device.**
+# 🦙 NeonLlama
 
-![NeonLlama Banner](https://img.shields.io/badge/NeonLlama-Private_AI-c8f000?style=for-the-badge&logo=meta&logoColor=black)
-![WebGPU](https://img.shields.io/badge/WebGPU-Powered-00ff88?style=for-the-badge)
-![Zero Backend](https://img.shields.io/badge/Backend-None_Required-ff4444?style=for-the-badge)
+### Chat with AI — 100% in your browser. Nothing leaves your device.
+
+![NeonLlama](https://img.shields.io/badge/NeonLlama-Private_AI-c8f000?style=for-the-badge&logoColor=black)
+![WebGPU](https://img.shields.io/badge/Runs_On-WebGPU-00ff88?style=for-the-badge)
 ![License](https://img.shields.io/badge/License-MIT-blue?style=for-the-badge)
 
----
+<br>
 
-## ⚡ What is NeonLlama?
+<img src="https://readme-typing-svg.herokuapp.com?font=Rajdhani&weight=700&size=24&duration=3000&pause=1000&color=C8F000&center=true&vCenter=true&width=500&lines=No+servers.+No+API+keys.+No+cloud.;Your+conversations+stay+on+YOUR+device.;Works+offline+after+first+load.;Completely+free.+Forever." alt="Typing SVG" />
 
-NeonLlama is a **fully client-side AI chatbot** that runs large language models directly in your browser using **WebGPU**. Everything — the model weights, the inference engine, your conversations — stays on YOUR device. 
-
-- **Zero backend** — no servers, no cloud, no API keys
-- **Zero cost** — completely free to run, forever
-- **Zero data collection** — your chats never leave your browser
-- **Works offline** — once the model is downloaded, no internet needed
+</div>
 
 ---
 
-## 🤖 Available Models
+## What is NeonLlama?
 
-| Model | Size | Best For | Provider |
-|-------|------|----------|----------|
-| ⚡ **Llama 3.2 1B** | ~0.7 GB | Any device, instant responses | Meta |
-| ⚖️ **Phi 3.5 Mini** | ~2.2 GB | Most laptops, smart & balanced | Microsoft |
-| 🧠 **Llama 3.1 8B** | ~4.5 GB | Powerful hardware, GPT-level quality | Meta |
+NeonLlama lets you talk to powerful AI models from **Meta** and **Microsoft** — directly in your web browser. No sign-ups, no subscriptions, no data collection. The AI runs entirely on your computer using your GPU.
 
-The app **auto-detects your hardware** and recommends the best model for your device.
+**Think of it as ChatGPT, but private and free.**
 
 ---
 
-## 🚀 Try It Now
+## Try It
 
-### Option 1: Use the Live Demo
-👉 **[Launch NeonLlama](#)** *(add your Netlify URL here after deploying)*
+### Use Online (Recommended)
+> **[Launch NeonLlama](#)** — *deploying soon on Netlify*
 
-### Option 2: Run Locally (No Install Needed)
+Just open the link in Chrome or Edge. That's it. No install.
 
-You need a simple static file server because WebGPU requires specific HTTP headers.
+### Run It Yourself
 
-**Using Python (already installed on most systems):**
 ```bash
-git clone https://github.com/YOUR_USERNAME/neonllama.git
-cd neonllama
-python -m http.server 8080
-```
-> ⚠️ Note: Python's simple server doesn't set CORS headers. For full functionality, use one of the methods below.
-
-**Using Node.js `serve` (recommended for local testing):**
-```bash
-npx serve -p 8080 --cors -L
+git clone https://github.com/himanshumudigonda/NeonLlama.git
+cd NeonLlama
+npx serve .
 ```
 
-**Using the provided Netlify config (deploy and it just works):**
-```bash
-# Push to GitHub → Connect to Netlify → Auto-deploys with correct headers
-```
+Open `http://localhost:3000` in Chrome/Edge.
 
-### Option 3: Deploy Your Own (Free)
+### Deploy Your Own Copy (Free)
 
-[![Deploy to Netlify](https://www.netlify.com/img/deploy/button.svg)](https://app.netlify.com/start)
+1. **Fork** this repo
+2. Go to [netlify.com](https://netlify.com) → **Add new site** → **Import from GitHub**
+3. Pick your fork, set publish directory to `.`
+4. Click **Deploy**
 
-1. Fork this repo
-2. Go to [Netlify](https://netlify.com) → **Add new site** → **Import from GitHub**
-3. Select your forked repo
-4. **Publish directory:** `.` (root)
-5. Click **Deploy** — that's it! 🎉
-
-The `netlify.toml` and `_headers` files automatically configure the required CORS headers.
+Done. You now have your own private AI chat site.
 
 ---
 
-## 💻 System Requirements
+## Available Models
 
-| Requirement | Minimum | Recommended |
-|-------------|---------|-------------|
-| **Browser** | Chrome 113+ / Edge 113+ | Latest Chrome |
-| **RAM** | 4 GB | 8+ GB |
-| **GPU** | Any WebGPU-compatible | Discrete GPU |
-| **Storage** | 1 GB free | 5 GB free (for larger models) |
-| **OS** | Windows / macOS / Linux / ChromeOS | Any |
+| Model | Download Size | Best For |
+|-------|:---:|----------|
+| ⚡ **Llama 3.2 1B** | ~0.7 GB | Quick answers on any device |
+| ⚖️ **Phi 3.5 Mini** | ~2.2 GB | Smart responses on most laptops |
+| 🧠 **Llama 3.1 8B** | ~4.5 GB | Best quality — needs 8GB+ RAM |
 
-> **Not sure if your browser supports WebGPU?** The app will tell you instantly and link you to a compatible browser.
+NeonLlama detects your hardware and picks the right model automatically. You can always switch manually.
 
----
-
-## 🏗️ Project Structure
-
-```
-neonllama/
-├── index.html      → Full UI with inline CSS (GTA-inspired dark theme)
-├── app.js          → Main thread: hardware detection, UI, worker bridge
-├── worker.js       → Web Worker: AI engine lifecycle (WebLLM)
-├── netlify.toml    → Netlify deployment config with CORS headers
-├── _headers        → Netlify headers file (backup)
-├── vercel.json     → Vercel deployment config (alternative)
-└── README.md       → You are here
-```
-
-**Only 3 files matter:** `index.html`, `app.js`, `worker.js`. Everything else is deployment config.
+Models download once, then get **cached in your browser** — next time it loads in seconds.
 
 ---
 
-## 🎨 Features
+## Requirements
 
-- **🔒 100% Private** — All AI processing happens in your browser
-- **⚡ Instant Hardware Detection** — Auto-detects RAM, CPU cores, GPU in <50ms
-- **🧵 Web Worker Architecture** — AI runs in a separate thread, UI never freezes
-- **📦 Smart Caching** — Models are cached in IndexedDB after first download
-- **📊 Real-time Progress** — Download speed (MB/s), ETA, and progress percentage
-- **💬 Streaming Responses** — Tokens appear in real-time with a blinking cursor
-- **📈 Performance Stats** — See tokens/second after each response
-- **🌙 GTA-Inspired UI** — Dark theme with neon accents and scanline effects
-- **📱 Responsive** — Works on desktop, tablet, and mobile
-- **🔄 Multi-turn Chat** — Full conversation history maintained
-- **🌐 Works Offline** — Once model is cached, no internet needed
-- **♿ Accessible** — Keyboard navigation, screen reader friendly
+| | Minimum | Recommended |
+|---|---|---|
+| **Browser** | Chrome 113+ or Edge 113+ | Latest Chrome |
+| **RAM** | 4 GB | 8 GB+ |
+| **GPU** | Any WebGPU-compatible | Dedicated GPU |
+| **Disk** | 1 GB free | 5 GB free |
+
+> Works on **Windows, macOS, Linux, and ChromeOS**.
+> NeonLlama checks your browser on load and shows a clear message if something's missing.
 
 ---
 
-## 🛠️ How It Works
+## Features
 
-```
-┌─────────────┐          ┌──────────────────┐
-│  index.html │          │    worker.js     │
-│  + app.js   │ ◄──────► │  (Web Worker)    │
-│  (Main UI)  │ messages  │  WebLLM Engine   │
-│             │          │  Model Loading   │
-│  Never      │          │  AI Inference    │
-│  imports    │          │  100% isolated   │
-│  WebLLM     │          │                  │
-└─────────────┘          └──────────────────┘
-       │                         │
-       ▼                         ▼
-  User sees UI              GPU processes AI
-  Zero lag                  Via WebGPU
-```
-
-1. **Page loads** → Worker spawns immediately, hardware detected in parallel
-2. **Model auto-selected** → Based on your device's RAM
-3. **Model downloads** → Cached in IndexedDB for future visits
-4. **You chat** → Messages sent to worker → AI generates response → Tokens stream back to UI
-5. **Everything stays local** → No server, no API, no tracking
+- **Private** — Everything runs locally. Zero data sent anywhere.
+- **Fast** — AI runs on your GPU. Responses stream in real-time.
+- **Smart Caching** — Models download once, load instantly after that.
+- **Offline Mode** — Works without internet once the model is cached.
+- **Auto Hardware Detection** — Picks the best model for your device.
+- **Live Stats** — See download speed, tokens per second, and more.
+- **Dark Theme** — Easy on the eyes. Looks great.
+- **Mobile Friendly** — Works on phones and tablets too.
+- **Multi-turn Chat** — Remembers earlier messages in the conversation.
 
 ---
 
-## 🤝 Contributing
+## FAQ
 
-Contributions are welcome! Here's how:
+**Q: Is this really free?**
+Yes. No hidden costs, no premium tier, no ads. MIT licensed.
 
-1. **Fork** this repository
-2. **Create** a feature branch: `git checkout -b my-feature`
-3. **Commit** your changes: `git commit -m "Add awesome feature"`
-4. **Push** to the branch: `git push origin my-feature`
-5. **Open** a Pull Request
+**Q: Does it send my data anywhere?**
+No. Everything — the AI model, your messages, the responses — stays in your browser. Check the source code yourself.
 
-### Ideas for contributions:
-- [ ] Add more model options
-- [ ] Conversation export (JSON/Markdown)
-- [ ] System prompt customization
-- [ ] Voice input support
-- [ ] Multiple chat threads
-- [ ] PWA support (installable app)
+**Q: Why does the first load take a while?**
+The AI model needs to download once (0.7–4.5 GB depending on the model). After that, it's cached and loads in seconds.
 
----
+**Q: Can I use it offline?**
+Yes! Once the model is downloaded, you can disconnect from the internet and keep chatting.
 
-## 📄 License
+**Q: Which browsers work?**
+Chrome 113+ and Edge 113+. Firefox and Safari don't support WebGPU yet.
 
-MIT License — Use it, modify it, share it. Free forever.
+**Q: My device is slow. Will it work?**
+NeonLlama will auto-select the lightest model (0.7 GB) for low-end devices. If your device has at least 4GB RAM and a WebGPU-compatible browser, it'll work.
 
 ---
 
-## ⭐ Star This Repo!
+## Contributing
 
-If you find NeonLlama useful, please give it a ⭐ on GitHub — it helps others discover it!
+Pull requests welcome! Fork the repo, make your changes, and submit a PR.
+
+Some ideas:
+- More model support
+- Chat export
+- Custom system prompts
+- Voice input
+- Multiple chat threads
 
 ---
 
-<p align="center">
-  <strong>Built with ❤️ using WebGPU + WebLLM</strong><br>
-  <sub>No servers were harmed in the making of this application.</sub>
-</p>
+## License
+
+MIT — free to use, modify, and share.
+
+---
+
+<div align="center">
+
+**If NeonLlama is useful to you, drop a ⭐ — it helps others find it.**
+
+Made by [Himanshu Mudigonda](https://github.com/himanshumudigonda)
+
+</div>
