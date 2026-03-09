@@ -3,83 +3,92 @@
 /* -- System Prompt ------------------------------------------ */
 const SYSTEM_PROMPT = "You are LlamaChat, a helpful and concise AI assistant running 100% privately in the user's browser. Be friendly and accurate.";
 
-/* -- Model Registry ----------------------------------------- */
+/* -- Model Registry (Rule 3 — exact IDs) ------------------- */
 const MODELS = [
   {
-    id: "Llama-3.2-1B-Instruct-q4f16_1-MLC",
+    id:    "Llama-3.2-1B-Instruct-q4f16_1-MLC",
     label: "\u26A1 Light \u2014 Llama 3.2 1B  by Meta       (~0.7 GB)",
     brand: "Meta",
-    brandIcon: "\uD83E\uDD99",
     botLabel: "\uD83E\uDD99 Llama",
     minRAM: 0,
-    note: "Silent. Instant. Works on any device.",
+    note:  "Silent. Instant. Works on any device.",
     sizeMB: 700,
   },
   {
-    id: "Phi-3.5-mini-instruct-q4f16_1-MLC",
+    id:    "Phi-3.5-mini-instruct-q4f16_1-MLC",
     label: "\u2696\uFE0F Balanced \u2014 Phi 3.5 Mini  by Microsoft  (~2.2 GB)",
     brand: "Microsoft",
-    brandIcon: "\u25C6",
     botLabel: "\u25C6 Phi",
     minRAM: 4,
-    note: "Smart & silent. Best for most laptops.",
+    note:  "Smart & silent. Best for most laptops.",
     sizeMB: 2200,
   },
   {
-    id: "Llama-3.1-8B-Instruct-q4f32_1-MLC",
+    id:    "Llama-3.1-8B-Instruct-q4f32_1-MLC",
     label: "\uD83E\uDDE0 Powerful \u2014 Llama 3.1 8B  by Meta       (~4.5 GB)",
     brand: "Meta",
-    brandIcon: "\uD83E\uDD99",
     botLabel: "\uD83E\uDD99 Llama",
     minRAM: 8,
-    note: "GPT-level quality. Needs good hardware.",
+    note:  "GPT-level quality. Needs good hardware.",
     sizeMB: 4500,
   },
 ];
 
+/* Phase 1 is always the lightest model (index 0) */
+const PHASE1_MODEL = MODELS[0];
+
 /* -- App State ---------------------------------------------- */
 const state = {
-  hardware: { ram: 4, cores: 4, gpu: "Unknown", webgpu: false },
-  selectedModel: null,
-  loadedModel: null,
-  isLoading: false,
-  isGenerating: false,
-  messages: [],
-  streamBuffer: "",
+  hardware:       { ram: 4, cores: 4, gpu: "Unknown", webgpu: false },
+  selectedModel:  null,
+  loadedModel:    null,
+  phase2Model:    null,   // the recommended upgrade target
+  phase2Ready:    false,  // phase 2 weights are cached
+  isSleeping:     false,  // model auto-unloaded after idle
+  isLoading:      false,
+  isGenerating:   false,
+  messages:       [],
+  streamBuffer:   "",
 };
 
 let engine = null;
 let currentWorker = null;
+let idleTimer = null;
+const IDLE_TIMEOUT = 5 * 60 * 1000; // 5 minutes
 
-/* -- DOM References (cached once on init) ------------------- */
+/* -- DOM References ----------------------------------------- */
 const _q = (sel) => document.querySelector(sel);
 const dom = {};
 
 function cacheDom() {
-  dom.overlay = _q("#loading-overlay");
-  dom.overlayTitle = _q("#overlay-title");
-  dom.overlaySubtitle = _q("#overlay-subtitle");
-  dom.overlayPercent = _q("#overlay-percent");
-  dom.progressBarFill = _q("#progress-bar-fill");
-  dom.overlayStatus = _q("#overlay-status");
-  dom.overlayStats = _q("#overlay-stats");
+  dom.overlay          = _q("#loading-overlay");
+  dom.overlayTitle     = _q("#overlay-title");
+  dom.overlaySubtitle  = _q("#overlay-subtitle");
+  dom.overlayPercent   = _q("#overlay-percent");
+  dom.progressBarFill  = _q("#progress-bar-fill");
+  dom.overlayStatus    = _q("#overlay-status");
+  dom.overlayStats     = _q("#overlay-stats");
   dom.overlayCacheNote = _q("#overlay-cache-note");
-  dom.overlayError = _q("#overlay-error");
+  dom.overlayError     = _q("#overlay-error");
   dom.overlayErrorText = _q("#overlay-error-text");
-  dom.overlayRetryBtn = _q("#overlay-retry-btn");
+  dom.overlayRetryBtn  = _q("#overlay-retry-btn");
   dom.overlayFallbackBtn = _q("#overlay-fallback-btn");
-  dom.webgpuError = _q("#webgpu-error");
-  dom.chatContainer = _q("#chat-container");
-  dom.messagesArea = _q("#messages-area");
-  dom.welcomeCard = _q("#welcome-card");
-  dom.welcomeBrand = _q("#welcome-brand");
-  dom.inputArea = _q("#input-area");
-  dom.modelSelect = _q("#model-select");
-  dom.chatInput = _q("#chat-input");
-  dom.sendBtn = _q("#send-btn");
-  dom.sendBtnText = _q("#send-btn-text");
-  dom.deviceInfo = _q("#device-info");
-  dom.loadModelBtn = _q("#load-model-btn");
+  dom.webgpuError      = _q("#webgpu-error");
+  dom.chatContainer    = _q("#chat-container");
+  dom.messagesArea     = _q("#messages-area");
+  dom.welcomeCard      = _q("#welcome-card");
+  dom.welcomeBrand     = _q("#welcome-brand");
+  dom.inputArea        = _q("#input-area");
+  dom.modelSelect      = _q("#model-select");
+  dom.chatInput        = _q("#chat-input");
+  dom.sendBtn          = _q("#send-btn");
+  dom.sendBtnText      = _q("#send-btn-text");
+  dom.deviceInfo       = _q("#device-info");
+  dom.upgradeBanner    = _q("#upgrade-banner");
+  dom.upgradeBannerText = _q("#upgrade-banner-text");
+  dom.upgradeYesBtn    = _q("#upgrade-yes-btn");
+  dom.upgradeNoBtn     = _q("#upgrade-no-btn");
+  dom.sleepBanner      = _q("#sleep-banner");
 }
 
 /* -- Hardware Detection ------------------------------------- */
@@ -99,16 +108,14 @@ async function detectHardware() {
           }
         }
         resolve("Unknown GPU");
-      } catch (_) {
-        resolve("Unknown GPU");
-      }
+      } catch (_) { resolve("Unknown GPU"); }
     });
 
   const checkWebGPU = () =>
     new Promise((resolve) => {
       if (!navigator.gpu) { resolve(false); return; }
       navigator.gpu.requestAdapter()
-        .then((adapter) => resolve(!!adapter))
+        .then((a) => resolve(!!a))
         .catch(() => resolve(false));
     });
 
@@ -120,20 +127,21 @@ async function detectHardware() {
   ]);
 
   state.hardware = { ram, cores, gpu: gpuInfo, webgpu: webgpuSupported };
-  console.log("[Hardware] RAM:", ram, "GB, Cores:", cores, ", GPU:", gpuInfo, ", WebGPU:", webgpuSupported, "in", (performance.now() - t0).toFixed(1), "ms");
+  console.log("[HW]", ram, "GB RAM,", cores, "cores,", gpuInfo, "WebGPU:", webgpuSupported,
+    "(" + (performance.now() - t0).toFixed(0) + "ms)");
   return state.hardware;
 }
 
-/* -- Model Auto-Selection ----------------------------------- */
-function autoSelectModel(ram) {
+/* -- Model Auto-Selection (Phase 2 target) ------------------ */
+function getPhase2Model(ram) {
   if (ram >= 8) return MODELS[2];
   if (ram >= 4) return MODELS[1];
-  return MODELS[0];
+  return null; // low RAM — Phase 1 is all we can do
 }
 
 /* -- Progress Tracking -------------------------------------- */
 let downloadStartTime = 0;
-let lastProgressTime = 0;
+let lastProgressTime  = 0;
 let lastProgressLoaded = 0;
 
 function parseProgressReport(report) {
@@ -150,40 +158,37 @@ function parseProgressReport(report) {
   const gbMatch = report.text?.match(/([\d.]+)\s*GB\s*\/\s*([\d.]+)\s*GB/i);
   if (gbMatch) {
     result.loaded_mb = parseFloat(gbMatch[1]) * 1024;
-    result.total_mb = parseFloat(gbMatch[2]) * 1024;
+    result.total_mb  = parseFloat(gbMatch[2]) * 1024;
   } else if (mbMatch) {
     result.loaded_mb = parseFloat(mbMatch[1]);
-    result.total_mb = parseFloat(mbMatch[2]);
+    result.total_mb  = parseFloat(mbMatch[2]);
   } else if (result.progress > 0) {
     result.loaded_mb = result.progress * 100;
-    result.total_mb = 100;
+    result.total_mb  = 100;
   }
 
   const now = performance.now();
-  const elapsedSinceStart = (now - downloadStartTime) / 1000;
-  if (elapsedSinceStart > 0.5 && result.loaded_mb > 0) {
-    const timeDelta = (now - lastProgressTime) / 1000;
-    const dataDelta = result.loaded_mb - lastProgressLoaded;
-    if (timeDelta > 0.1 && dataDelta > 0) {
-      result.speed_mbps = dataDelta / timeDelta;
-    } else if (elapsedSinceStart > 0) {
-      result.speed_mbps = result.loaded_mb / elapsedSinceStart;
-    }
+  const elapsed = (now - downloadStartTime) / 1000;
+  if (elapsed > 0.5 && result.loaded_mb > 0) {
+    const dt = (now - lastProgressTime) / 1000;
+    const dd = result.loaded_mb - lastProgressLoaded;
+    if (dt > 0.1 && dd > 0) result.speed_mbps = dd / dt;
+    else if (elapsed > 0) result.speed_mbps = result.loaded_mb / elapsed;
     if (result.speed_mbps > 0 && result.total_mb > result.loaded_mb) {
       result.eta_seconds = (result.total_mb - result.loaded_mb) / result.speed_mbps;
     }
   }
-  lastProgressTime = now;
+  lastProgressTime   = now;
   lastProgressLoaded = result.loaded_mb;
   return result;
 }
 
-/* -- Load Progress Handler ---------------------------------- */
+/* -- Overlay Progress UI ------------------------------------ */
 function handleLoadProgress(p) {
   const pct = Math.round(p.progress * 100);
-  dom.overlayPercent.textContent = pct + "%";
+  dom.overlayPercent.textContent  = pct + "%";
   dom.progressBarFill.style.width = pct + "%";
-  dom.sendBtnText.textContent = "Loading... " + pct + "%";
+  dom.sendBtnText.textContent     = "Loading... " + pct + "%";
 
   let statusText = p.text || "Loading model...";
   if (statusText.length > 60) {
@@ -195,18 +200,14 @@ function handleLoadProgress(p) {
 
   let statsText = "";
   if (p.total_mb > 0) {
-    const loadedStr = p.loaded_mb >= 1024
-      ? (p.loaded_mb / 1024).toFixed(2) + " GB" : Math.round(p.loaded_mb) + " MB";
-    const totalStr = p.total_mb >= 1024
-      ? (p.total_mb / 1024).toFixed(1) + " GB" : Math.round(p.total_mb) + " MB";
-    statsText += loadedStr + " / " + totalStr;
+    const ld = p.loaded_mb >= 1024 ? (p.loaded_mb / 1024).toFixed(2) + " GB" : Math.round(p.loaded_mb) + " MB";
+    const tt = p.total_mb  >= 1024 ? (p.total_mb / 1024).toFixed(1) + " GB" : Math.round(p.total_mb) + " MB";
+    statsText += ld + " / " + tt;
   }
-  if (p.speed_mbps > 0.5) {
-    statsText += "  \u2193 " + Math.round(p.speed_mbps) + " MB/s";
-  }
+  if (p.speed_mbps > 0.5) statsText += "  \u2193 " + Math.round(p.speed_mbps) + " MB/s";
   if (p.eta_seconds > 1 && p.eta_seconds < 3600) {
-    const eta = Math.round(p.eta_seconds);
-    statsText += eta >= 60 ? "  ~" + Math.ceil(eta / 60) + " min remaining" : "  ~" + eta + "s left";
+    const s = Math.round(p.eta_seconds);
+    statsText += s >= 60 ? "  ~" + Math.ceil(s / 60) + " min left" : "  ~" + s + "s left";
   }
   dom.overlayStats.textContent = statsText;
 
@@ -216,111 +217,320 @@ function handleLoadProgress(p) {
   }
 }
 
-/* -- Load Complete Handler ---------------------------------- */
-function handleLoadComplete({ modelId }) {
-  state.isLoading = false;
+/* -- Load Complete → Fade Overlay → Unlock Chat ------------- */
+function handleLoadComplete(modelId) {
+  state.isLoading  = false;
+  state.isSleeping = false;
   state.loadedModel = MODELS.find((m) => m.id === modelId) || state.selectedModel;
 
-  dom.overlayPercent.textContent = "100%";
+  dom.overlayPercent.textContent  = "100%";
   dom.progressBarFill.style.width = "100%";
-  dom.overlayStatus.textContent = "Model ready!";
-  dom.overlayStats.textContent = "";
+  dom.overlayStatus.textContent   = "Model ready!";
+  dom.overlayStats.textContent    = "";
 
   setTimeout(() => {
-    dom.overlay.classList.add("fade-out");
+    dom.overlay.style.transition = "opacity 0.6s ease";
+    dom.overlay.style.opacity    = "0";
     setTimeout(() => {
-      dom.overlay.style.display = "none";
-      dom.overlay.classList.remove("fade-out");
-    }, 500);
+      dom.overlay.style.display    = "none";
+      dom.overlay.style.opacity    = "1";
+      dom.overlay.style.transition = "";
+    }, 600);
   }, 400);
 
   updateUIReady();
   updateWelcomeCard();
+  hideSleepBanner();
+  resetIdleTimer();
 }
 
-/* -- Stream Chunk Handler ----------------------------------- */
-function handleStreamChunk({ delta }) {
-  state.streamBuffer += delta;
-  updateBotMessage(state.streamBuffer, true);
+/* ============================================================
+   PHASE 1 + PHASE 2 — AirLLM loading strategy
+   ============================================================ */
+
+/* -- Load a model (generic) --------------------------------- */
+async function loadModel(modelId, showOverlay) {
+  const model = MODELS.find(m => m.id === modelId);
+  if (!model) {
+    console.error("Invalid model ID:", modelId);
+    return false;
+  }
+
+  state.isLoading    = true;
+  state.selectedModel = model;
+
+  if (showOverlay) {
+    updateUILoading();
+    dom.overlay.style.display = "flex";
+    dom.overlay.style.opacity = "1";
+    dom.overlayPercent.textContent  = "0%";
+    dom.progressBarFill.style.width = "0%";
+    dom.overlayStatus.textContent   = "Initializing engine...";
+    dom.overlayStats.textContent    = "";
+    dom.overlayCacheNote.textContent = "";
+    dom.overlayError.style.display  = "none";
+  }
+
+  downloadStartTime  = performance.now();
+  lastProgressTime   = downloadStartTime;
+  lastProgressLoaded = 0;
+
+  const initProgressCallback = (report) => {
+    try {
+      const norm = typeof report === "string" ? { text: report, progress: 0 } : report;
+      const p = parseProgressReport(norm);
+      if (showOverlay) handleLoadProgress(p);
+    } catch (_) {}
+  };
+
+  try {
+    /* AirLLM principle: always unload current model first */
+    if (engine) {
+      try { await engine.unload(); } catch (_) {}
+      engine = null;
+    }
+    if (currentWorker) {
+      try { currentWorker.terminate(); } catch (_) {}
+      currentWorker = null;
+    }
+
+    /* Small pause to let GPU memory settle */
+    await new Promise(r => setTimeout(r, 300));
+
+    currentWorker = new Worker("./worker.js", { type: "module" });
+
+    engine = await CreateWebWorkerMLCEngine(
+      currentWorker,
+      modelId,
+      { initProgressCallback },
+    );
+
+    if (showOverlay) handleLoadComplete(modelId);
+    else {
+      state.isLoading  = false;
+      state.loadedModel = model;
+      resetIdleTimer();
+    }
+
+    populateModelSelect();
+    updateDeviceInfo();
+    return true;
+  } catch (err) {
+    engine = null;
+    if (currentWorker) {
+      try { currentWorker.terminate(); } catch (_) {}
+      currentWorker = null;
+    }
+    state.isLoading = false;
+    const isOOM = err.message?.includes("memory") || err.message?.includes("OOM") || err.message?.includes("allocation");
+    if (showOverlay) {
+      handleError(err.message || "Failed to load model", true, isOOM);
+    } else {
+      console.error("[Phase2 bg load failed]", err.message);
+    }
+    return false;
+  }
 }
 
-/* -- Stream Done Handler ------------------------------------ */
-function handleStreamDone({ stats }) {
+/* -- Phase 2: Background pre-cache -------------------------- */
+async function backgroundCachePhase2() {
+  if (!state.phase2Model) return;
+  if (state.phase2Model.id === PHASE1_MODEL.id) return; // same model
+
+  console.log("[Phase2] Background-caching:", state.phase2Model.id);
+
+  /* We create a SEPARATE worker + engine just to trigger the download,
+     then immediately discard it. The weights get cached in IndexedDB/CacheAPI
+     by WebLLM automatically. We do NOT keep this engine alive. */
+  let bgWorker = null;
+  try {
+    bgWorker = new Worker("./worker.js", { type: "module" });
+    const bgEngine = await CreateWebWorkerMLCEngine(
+      bgWorker,
+      state.phase2Model.id,
+      { initProgressCallback: () => {} },
+    );
+
+    /* Weights are now cached — unload immediately to free GPU */
+    await bgEngine.unload();
+    bgWorker.terminate();
+    bgWorker = null;
+
+    state.phase2Ready = true;
+    console.log("[Phase2] Cached successfully:", state.phase2Model.id);
+    showUpgradeBanner();
+  } catch (err) {
+    console.warn("[Phase2] Background cache failed:", err.message);
+    if (bgWorker) { try { bgWorker.terminate(); } catch (_) {} }
+  }
+}
+
+/* -- Upgrade Banner ----------------------------------------- */
+function showUpgradeBanner() {
+  if (!dom.upgradeBanner || !state.phase2Model) return;
+  const name = state.phase2Model.id.split("-q")[0];
+  dom.upgradeBannerText.textContent = "\u26A1 " + name + " by " + state.phase2Model.brand + " is ready \u2014 Upgrade?";
+  dom.upgradeBanner.style.display = "flex";
+  dom.upgradeBanner.style.animation = "fadeIn 0.3s ease";
+}
+
+function hideUpgradeBanner() {
+  if (dom.upgradeBanner) dom.upgradeBanner.style.display = "none";
+}
+
+async function handleUpgradeYes() {
+  hideUpgradeBanner();
+  if (!state.phase2Model) return;
+  await loadModel(state.phase2Model.id, true);
+}
+
+function handleUpgradeNo() {
+  hideUpgradeBanner();
+}
+
+/* ============================================================
+   IDLE AUTO-SLEEP (Phase 3) — AirLLM memory management
+   ============================================================ */
+function resetIdleTimer() {
+  clearTimeout(idleTimer);
+  if (!engine || state.isGenerating || state.isLoading) return;
+  idleTimer = setTimeout(async () => {
+    if (state.isGenerating || state.isLoading) return;
+    console.log("[Idle] 5 min idle — unloading model to save memory");
+    try {
+      if (engine) await engine.unload();
+    } catch (_) {}
+    engine = null;
+    if (currentWorker) {
+      try { currentWorker.terminate(); } catch (_) {}
+      currentWorker = null;
+    }
+    state.isSleeping = true;
+    state.loadedModel = null;
+    showSleepBanner();
+    dom.sendBtn.disabled = true;
+    dom.sendBtnText.textContent = "\uD83D\uDCA4 Sleeping";
+    dom.chatInput.placeholder = "Type to wake up the model...";
+    dom.chatInput.disabled = false;
+  }, IDLE_TIMEOUT);
+}
+
+function showSleepBanner() {
+  if (dom.sleepBanner) {
+    dom.sleepBanner.style.display = "block";
+    dom.sleepBanner.style.animation = "fadeIn 0.3s ease";
+  }
+}
+
+function hideSleepBanner() {
+  if (dom.sleepBanner) dom.sleepBanner.style.display = "none";
+}
+
+/* Wake from sleep: reload current model from cache (fast) */
+async function wakeFromSleep() {
+  if (!state.isSleeping || state.isLoading) return;
+  hideSleepBanner();
+  const modelId = state.selectedModel ? state.selectedModel.id : PHASE1_MODEL.id;
+  await loadModel(modelId, true);
+}
+
+/* ============================================================
+   Streaming chat — unchanged logic, extracted for reuse
+   ============================================================ */
+async function streamChat(msgs) {
+  const startTime = performance.now();
+  let tokenCount = 0;
+
+  const chunks = await engine.chat.completions.create({
+    messages: msgs,
+    temperature: 0.7,
+    top_p: 0.95,
+    max_tokens: 1024,
+    stream: true,
+    stream_options: { include_usage: true },
+  });
+
+  for await (const chunk of chunks) {
+    const delta = chunk.choices?.[0]?.delta?.content;
+    if (delta) {
+      tokenCount++;
+      state.streamBuffer += delta;
+      updateBotMessage(state.streamBuffer, true);
+    }
+    if (chunk.usage) {
+      const elapsed = performance.now() - startTime;
+      finishStream({
+        tokens: chunk.usage.completion_tokens || tokenCount,
+        prompt_tokens: chunk.usage.prompt_tokens || 0,
+        ms: Math.round(elapsed),
+        tokensPerSecond: Math.round(((chunk.usage.completion_tokens || tokenCount) / elapsed) * 1000),
+      });
+      return;
+    }
+  }
+
+  /* Fallback if no usage chunk came */
+  if (state.isGenerating) {
+    const elapsed = performance.now() - startTime;
+    finishStream({
+      tokens: tokenCount, prompt_tokens: 0,
+      ms: Math.round(elapsed),
+      tokensPerSecond: tokenCount > 0 ? Math.round((tokenCount / elapsed) * 1000) : 0,
+    });
+  }
+}
+
+function finishStream(stats) {
   state.isGenerating = false;
-
   const lastBotMsg = getLastBotBubble();
   if (lastBotMsg) {
     const cursor = lastBotMsg.querySelector(".cursor");
     if (cursor) cursor.remove();
-
-    const statsEl = document.createElement("div");
-    statsEl.className = "msg-stats";
-    const tps = stats.tokensPerSecond || 0;
-    const secs = (stats.ms / 1000).toFixed(1);
-    statsEl.textContent = stats.tokens + " tokens \u00B7 " + secs + "s \u00B7 " + tps + " tok/s";
-    lastBotMsg.appendChild(statsEl);
+    const el = document.createElement("div");
+    el.className = "msg-stats";
+    el.textContent = stats.tokens + " tokens \u00B7 " + (stats.ms / 1000).toFixed(1) + "s \u00B7 " + stats.tokensPerSecond + " tok/s";
+    lastBotMsg.appendChild(el);
   }
-
   state.messages.push({ role: "assistant", content: state.streamBuffer });
   state.streamBuffer = "";
   updateUIReady();
+  resetIdleTimer();
 }
 
 /* -- Error Handler ------------------------------------------ */
 function handleError(message, recoverable = true, oom = false) {
   console.error("[Error]", message);
-
   if (state.isLoading) {
     state.isLoading = false;
-    if (oom) {
-      showOverlayError("Out of memory! Try a lighter model.", true, true);
-    } else {
-      showOverlayError(message, recoverable);
-    }
+    if (oom) showOverlayError("Out of memory! Try a lighter model.", true, true);
+    else showOverlayError(message, recoverable);
     return;
   }
-
   if (state.isGenerating) {
     state.isGenerating = false;
     appendErrorBubble(message, oom);
     updateUIReady();
     return;
   }
-
   showOverlayError(message, recoverable);
 }
 
-/* -- Overlay Error Display ---------------------------------- */
 function showOverlayError(msg, recoverable, showFallback = false) {
-  dom.overlayError.style.display = "block";
-  dom.overlayErrorText.textContent = msg;
-  dom.overlayRetryBtn.style.display = recoverable ? "inline-block" : "none";
+  dom.overlayError.style.display      = "block";
+  dom.overlayErrorText.textContent    = msg;
+  dom.overlayRetryBtn.style.display   = recoverable ? "inline-block" : "none";
   dom.overlayFallbackBtn.style.display = showFallback ? "inline-block" : "none";
-  dom.overlayStatus.textContent = "Error";
-  dom.overlayStats.textContent = "";
+  dom.overlayStatus.textContent       = "Error";
+  dom.overlayStats.textContent        = "";
 }
 
-/* -- Cache Check -------------------------------------------- */
-async function checkAllCaches() {
-  try {
-    if ("caches" in self) {
-      const cacheNames = await caches.keys();
-      return cacheNames.some(
-        (name) => name.includes("webllm") || name.includes("mlc") || name.includes("wasm")
-      );
-    }
-  } catch (_) {}
-  return false;
-}
-
-/* -- UI Update Functions ------------------------------------ */
+/* -- UI State Functions ------------------------------------- */
 function updateUIReady() {
   dom.sendBtn.disabled = false;
   dom.sendBtnText.textContent = "Send \u2192";
   dom.chatInput.disabled = false;
   dom.chatInput.placeholder = "Type a message...";
   dom.modelSelect.disabled = false;
-  if (dom.loadModelBtn) dom.loadModelBtn.disabled = false;
 }
 
 function updateUILoading() {
@@ -345,11 +555,10 @@ function updateWelcomeCard() {
 
 function updateDeviceInfo() {
   const hw = state.hardware;
-  const gpuStatus = hw.webgpu ? "WebGPU \u2713" : "WebGPU \u2717";
-  const modelName = state.selectedModel ? state.selectedModel.id.split("-q")[0] : "None";
-  const brand = state.selectedModel ? state.selectedModel.brand : "";
-  dom.deviceInfo.textContent =
-    "Detected: " + hw.ram + " GB RAM \u00B7 " + gpuStatus + " \u00B7 Recommended: " + modelName + " by " + brand;
+  const gStatus = hw.webgpu ? "WebGPU \u2713" : "WebGPU \u2717";
+  const active = state.loadedModel || state.selectedModel;
+  const mName = active ? active.id.split("-q")[0] + " by " + active.brand : "None";
+  dom.deviceInfo.textContent = "Detected: " + hw.ram + " GB RAM \u00B7 " + gStatus + " \u00B7 Active: " + mName;
 }
 
 /* -- Populate Model Selector -------------------------------- */
@@ -359,22 +568,14 @@ function populateModelSelect() {
     const opt = document.createElement("option");
     opt.value = i;
     opt.textContent = m.label;
-    if (m.minRAM > state.hardware.ram) {
-      opt.textContent += " (may be slow)";
-    }
+    if (m.minRAM > state.hardware.ram) opt.textContent += " (may be slow)";
     dom.modelSelect.appendChild(opt);
   });
-  const selectedIdx = MODELS.indexOf(state.selectedModel);
-  if (selectedIdx >= 0) dom.modelSelect.value = selectedIdx;
+  const idx = MODELS.indexOf(state.selectedModel);
+  if (idx >= 0) dom.modelSelect.value = idx;
 }
 
 /* -- Chat Rendering ----------------------------------------- */
-function clearChat() {
-  const msgs = dom.messagesArea.querySelectorAll(".msg-bubble");
-  msgs.forEach((el) => el.remove());
-  dom.welcomeCard.style.display = "block";
-}
-
 function appendUserBubble(text) {
   dom.welcomeCard.style.display = "none";
   const bubble = document.createElement("div");
@@ -397,9 +598,8 @@ function appendBotBubble() {
 function updateBotMessage(fullText, streaming) {
   const bubble = getLastBotBubble();
   if (!bubble) return;
-  const contentEl = bubble.querySelector(".msg-content");
-  const rendered = renderMarkdownLight(fullText);
-  contentEl.innerHTML = rendered + (streaming ? '<span class="cursor">\u258B</span>' : "");
+  const c = bubble.querySelector(".msg-content");
+  c.innerHTML = renderMarkdownLight(fullText) + (streaming ? '<span class="cursor">\u258B</span>' : "");
   scrollToBottom();
 }
 
@@ -407,9 +607,7 @@ function appendErrorBubble(message, oom) {
   const bubble = document.createElement("div");
   bubble.className = "msg-bubble msg-error";
   let html = '<div class="msg-content">\u26A0\uFE0F ' + escapeHtml(message) + '</div>';
-  if (oom) {
-    html += '<button class="retry-lighter-btn" onclick="window.__switchToLighter()">Switch to lighter model</button>';
-  }
+  if (oom) html += '<button class="retry-lighter-btn" onclick="window.__switchToLighter()">Switch to lighter model</button>';
   html += '<button class="retry-btn" onclick="window.__retryLastMessage()">Retry</button>';
   bubble.innerHTML = html;
   dom.messagesArea.appendChild(bubble);
@@ -422,9 +620,8 @@ function getLastBotBubble() {
 }
 
 function scrollToBottom() {
-  const area = dom.messagesArea;
   requestAnimationFrame(() => {
-    area.lastElementChild?.scrollIntoView({ behavior: "smooth", block: "end" });
+    dom.messagesArea.lastElementChild?.scrollIntoView({ behavior: "smooth", block: "end" });
   });
 }
 
@@ -444,138 +641,36 @@ function escapeHtml(str) {
   return str.replace(/[&<>"']/g, (c) => map[c]);
 }
 
-/* -- Load Model --------------------------------------------- */
-async function loadSelectedModel() {
-  if (!state.selectedModel || state.isLoading) return;
-
-  state.isLoading = true;
-  updateUILoading();
-
-  dom.overlay.style.display = "flex";
-  dom.overlay.classList.remove("fade-out");
-  dom.overlayPercent.textContent = "0%";
-  dom.progressBarFill.style.width = "0%";
-  dom.overlayStatus.textContent = "Initializing engine...";
-  dom.overlayStats.textContent = "";
-  dom.overlayCacheNote.textContent = "";
-  dom.overlayError.style.display = "none";
-
-  const modelId = state.selectedModel.id;
-
-  // Validate model ID (prevents .find() crash)
-  if (!MODELS.find(m => m.id === modelId)) {
-    console.error("Invalid model ID — must match prebuiltAppConfig exactly:", modelId);
-    handleError("Invalid model ID: " + modelId, false);
-    return;
-  }
-
-  downloadStartTime = performance.now();
-  lastProgressTime = downloadStartTime;
-  lastProgressLoaded = 0;
-
-  const initProgressCallback = (report) => {
-    try {
-      const normalized = typeof report === "string"
-        ? { text: report, progress: 0 } : report;
-      const parsed = parseProgressReport(normalized);
-      handleLoadProgress(parsed);
-    } catch (_) {}
-  };
-
-  try {
-    if (currentWorker) {
-      try { currentWorker.terminate(); } catch (_) {}
-      currentWorker = null;
-      engine = null;
-    }
-
-    currentWorker = new Worker("./worker.js", { type: "module" });
-
-    engine = await CreateWebWorkerMLCEngine(
-      currentWorker,
-      modelId,
-      { initProgressCallback: initProgressCallback },
-    );
-
-    handleLoadComplete({ modelId });
-  } catch (err) {
-    engine = null;
-    if (currentWorker) {
-      try { currentWorker.terminate(); } catch (_) {}
-      currentWorker = null;
-    }
-    const isOOM = err.message?.includes("memory") || err.message?.includes("OOM") || err.message?.includes("allocation");
-    handleError(err.message || "Failed to load model", true, isOOM);
-  }
-}
-
 /* -- Send Message ------------------------------------------- */
 async function sendMessage() {
   const text = dom.chatInput.value.trim();
-  if (!text || state.isGenerating || !engine) return;
+  if (!text) return;
 
+  /* If sleeping, wake first then send */
+  if (state.isSleeping) {
+    dom.chatInput.value = text; // preserve
+    await wakeFromSleep();
+    // after wake, engine is ready — fall through
+  }
+
+  if (state.isGenerating || !engine) return;
+
+  resetIdleTimer();
   state.messages.push({ role: "user", content: text });
   appendUserBubble(text);
   dom.chatInput.value = "";
   dom.chatInput.style.height = "auto";
 
-  state.isGenerating = true;
-  state.streamBuffer = "";
+  state.isGenerating  = true;
+  state.streamBuffer  = "";
   updateUIGenerating();
   appendBotBubble();
 
   try {
-    const fullMessages = [
+    await streamChat([
       { role: "system", content: SYSTEM_PROMPT },
       ...state.messages,
-    ];
-
-    const startTime = performance.now();
-    let tokenCount = 0;
-
-    const chunks = await engine.chat.completions.create({
-      messages: fullMessages,
-      temperature: 0.7,
-      top_p: 0.95,
-      max_tokens: 1024,
-      stream: true,
-      stream_options: { include_usage: true },
-    });
-
-    for await (const chunk of chunks) {
-      const delta = chunk.choices?.[0]?.delta?.content;
-      if (delta) {
-        tokenCount++;
-        handleStreamChunk({ delta });
-      }
-
-      if (chunk.usage) {
-        const elapsed = performance.now() - startTime;
-        handleStreamDone({
-          stats: {
-            tokens: chunk.usage.completion_tokens || tokenCount,
-            prompt_tokens: chunk.usage.prompt_tokens || 0,
-            ms: Math.round(elapsed),
-            tokensPerSecond: Math.round(
-              ((chunk.usage.completion_tokens || tokenCount) / elapsed) * 1000
-            ),
-          },
-        });
-        return;
-      }
-    }
-
-    if (state.isGenerating) {
-      const elapsed = performance.now() - startTime;
-      handleStreamDone({
-        stats: {
-          tokens: tokenCount,
-          prompt_tokens: 0,
-          ms: Math.round(elapsed),
-          tokensPerSecond: tokenCount > 0 ? Math.round((tokenCount / elapsed) * 1000) : 0,
-        },
-      });
-    }
+    ]);
   } catch (err) {
     state.isGenerating = false;
     const isOOM = err.message?.includes("memory") || err.message?.includes("OOM") || err.message?.includes("allocation");
@@ -589,6 +684,7 @@ function setupInput() {
   dom.chatInput.addEventListener("input", () => {
     dom.chatInput.style.height = "auto";
     dom.chatInput.style.height = Math.min(dom.chatInput.scrollHeight, 120) + "px";
+    resetIdleTimer();
   });
 
   dom.chatInput.addEventListener("keydown", (e) => {
@@ -600,113 +696,55 @@ function setupInput() {
 
   dom.sendBtn.addEventListener("click", sendMessage);
 
-  dom.modelSelect.addEventListener("change", () => {
+  dom.modelSelect.addEventListener("change", async () => {
     const idx = parseInt(dom.modelSelect.value, 10);
-    state.selectedModel = MODELS[idx];
-    updateDeviceInfo();
-    loadSelectedModel();
+    const target = MODELS[idx];
+    if (target.id === state.loadedModel?.id) return; // already loaded
+    hideUpgradeBanner();
+    await loadModel(target.id, true);
   });
-
-  if (dom.loadModelBtn) {
-    dom.loadModelBtn.addEventListener("click", () => {
-      loadSelectedModel();
-    });
-  }
 
   dom.overlayRetryBtn.addEventListener("click", () => {
     dom.overlayError.style.display = "none";
-    loadSelectedModel();
+    const id = state.selectedModel ? state.selectedModel.id : PHASE1_MODEL.id;
+    loadModel(id, true);
   });
 
   dom.overlayFallbackBtn.addEventListener("click", () => {
     dom.overlayError.style.display = "none";
-    state.selectedModel = MODELS[0];
-    populateModelSelect();
-    loadSelectedModel();
+    loadModel(PHASE1_MODEL.id, true);
   });
+
+  if (dom.upgradeYesBtn) dom.upgradeYesBtn.addEventListener("click", handleUpgradeYes);
+  if (dom.upgradeNoBtn)  dom.upgradeNoBtn.addEventListener("click", handleUpgradeNo);
 }
 
 /* -- Global helpers for inline onclick ---------------------- */
 window.__retryLastMessage = function () {
-  if (state.messages.length > 0 && !state.isGenerating) {
-    const lastUserIdx = state.messages.map((m) => m.role).lastIndexOf("user");
-    if (lastUserIdx >= 0) {
-      state.isGenerating = true;
-      state.streamBuffer = "";
-      updateUIGenerating();
-      appendBotBubble();
-      sendMessageFromHistory(state.messages.slice(0, lastUserIdx + 1));
-    }
-  }
+  if (state.messages.length === 0 || state.isGenerating) return;
+  const lastUserIdx = state.messages.map(m => m.role).lastIndexOf("user");
+  if (lastUserIdx < 0) return;
+  state.isGenerating = true;
+  state.streamBuffer = "";
+  updateUIGenerating();
+  appendBotBubble();
+  streamChat([
+    { role: "system", content: SYSTEM_PROMPT },
+    ...state.messages.slice(0, lastUserIdx + 1),
+  ]).catch((err) => {
+    state.isGenerating = false;
+    appendErrorBubble(err.message || "Retry failed", false);
+    updateUIReady();
+  });
 };
 
 window.__switchToLighter = function () {
   const currentIdx = MODELS.indexOf(state.selectedModel);
   if (currentIdx > 0) {
-    state.selectedModel = MODELS[currentIdx - 1];
-    populateModelSelect();
-    state.loadedModel = null;
-    loadSelectedModel();
+    hideUpgradeBanner();
+    loadModel(MODELS[currentIdx - 1].id, true);
   }
 };
-
-async function sendMessageFromHistory(msgs) {
-  try {
-    const fullMessages = [
-      { role: "system", content: SYSTEM_PROMPT },
-      ...msgs,
-    ];
-    const startTime = performance.now();
-    let tokenCount = 0;
-
-    const chunks = await engine.chat.completions.create({
-      messages: fullMessages,
-      temperature: 0.7,
-      top_p: 0.95,
-      max_tokens: 1024,
-      stream: true,
-      stream_options: { include_usage: true },
-    });
-
-    for await (const chunk of chunks) {
-      const delta = chunk.choices?.[0]?.delta?.content;
-      if (delta) {
-        tokenCount++;
-        handleStreamChunk({ delta });
-      }
-      if (chunk.usage) {
-        const elapsed = performance.now() - startTime;
-        handleStreamDone({
-          stats: {
-            tokens: chunk.usage.completion_tokens || tokenCount,
-            prompt_tokens: chunk.usage.prompt_tokens || 0,
-            ms: Math.round(elapsed),
-            tokensPerSecond: Math.round(
-              ((chunk.usage.completion_tokens || tokenCount) / elapsed) * 1000
-            ),
-          },
-        });
-        return;
-      }
-    }
-
-    if (state.isGenerating) {
-      const elapsed = performance.now() - startTime;
-      handleStreamDone({
-        stats: {
-          tokens: tokenCount,
-          prompt_tokens: 0,
-          ms: Math.round(elapsed),
-          tokensPerSecond: tokenCount > 0 ? Math.round((tokenCount / elapsed) * 1000) : 0,
-        },
-      });
-    }
-  } catch (err) {
-    state.isGenerating = false;
-    appendErrorBubble(err.message || "Generation failed", false);
-    updateUIReady();
-  }
-}
 
 /* -- Network Status ----------------------------------------- */
 function setupNetworkStatus() {
@@ -715,23 +753,28 @@ function setupNetworkStatus() {
       appendErrorBubble("You are offline and no model is cached. Connect to the internet to download a model.", false);
     }
   });
-  window.addEventListener("online", () => {
-    console.log("[Network] Back online");
-  });
 }
 
 /* -- Global Error Handler ----------------------------------- */
 window.onerror = (msg) => {
   if (typeof msg === "string" && (msg.includes("memory") || msg.includes("Out of"))) {
-    handleError("Out of memory — try switching to the \u26A1 Light model", true, true);
+    handleError("Out of memory \u2014 try switching to the \u26A1 Light model", true, true);
   }
 };
 
-/* -- Boot Sequence ------------------------------------------ */
+/* ============================================================
+   BOOT SEQUENCE — The GTA Loading Experience
+   ============================================================
+   1. Detect hardware (50ms)
+   2. Phase 1: Load Llama 1B (0.7 GB) with GTA progress bar
+   3. Chat unlocked — user starts talking
+   4. Phase 2: Background-cache the recommended bigger model
+   5. Show upgrade banner when Phase 2 is ready
+   ============================================================ */
 async function boot() {
   cacheDom();
 
-  const [hardware] = await Promise.all([detectHardware(), checkAllCaches()]);
+  const hardware = await detectHardware();
 
   if (!hardware.webgpu) {
     dom.overlay.style.display = "none";
@@ -739,12 +782,24 @@ async function boot() {
     return;
   }
 
-  state.selectedModel = autoSelectModel(hardware.ram);
+  /* Determine Phase 2 target based on RAM */
+  state.phase2Model = getPhase2Model(hardware.ram);
+
+  /* Phase 1: Always start with the lightest model for instant start */
+  state.selectedModel = PHASE1_MODEL;
   populateModelSelect();
   updateDeviceInfo();
   setupInput();
   setupNetworkStatus();
-  loadSelectedModel();
+
+  console.log("[Boot] Phase 1 \u2192 Loading", PHASE1_MODEL.id);
+  const ok = await loadModel(PHASE1_MODEL.id, true);
+
+  /* Phase 2: Silently background-cache the bigger model */
+  if (ok && state.phase2Model && state.phase2Model.id !== PHASE1_MODEL.id) {
+    console.log("[Boot] Phase 2 \u2192 Background caching", state.phase2Model.id);
+    backgroundCachePhase2();
+  }
 }
 
 /* -- DOMContentLoaded --------------------------------------- */

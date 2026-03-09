@@ -556,6 +556,65 @@
       50% { opacity: 1; }
     }
 
+    /* ── Upgrade Banner ────────────────────────────────────── */
+    .upgrade-banner {
+      display: none;
+      align-items: center;
+      justify-content: center;
+      gap: 12px;
+      padding: 10px 16px;
+      background: var(--surface);
+      border-top: 1px solid var(--accent);
+      border-bottom: 1px solid var(--border);
+      flex-shrink: 0;
+      animation: fadeIn 0.3s ease;
+    }
+
+    .upgrade-banner-text {
+      font-size: 0.84rem;
+      color: var(--accent);
+      font-weight: 500;
+    }
+
+    .upgrade-btn {
+      padding: 5px 14px;
+      border: none;
+      border-radius: 4px;
+      font-family: 'Inter', sans-serif;
+      font-size: 0.8rem;
+      font-weight: 600;
+      cursor: pointer;
+      transition: background 0.2s;
+    }
+
+    .upgrade-btn-yes {
+      background: var(--accent);
+      color: #000;
+    }
+    .upgrade-btn-yes:hover { background: #d4ff00; }
+
+    .upgrade-btn-no {
+      background: var(--surface2);
+      color: var(--text-muted);
+      border: 1px solid var(--border);
+    }
+    .upgrade-btn-no:hover { background: #222; }
+
+    /* ── Sleep Banner ──────────────────────────────────────── */
+    .sleep-banner {
+      display: none;
+      text-align: center;
+      padding: 24px 16px;
+      color: var(--text-muted);
+      font-size: 0.9rem;
+      animation: fadeIn 0.3s ease;
+    }
+
+    .sleep-banner-icon {
+      font-size: 2rem;
+      margin-bottom: 6px;
+    }
+
     /* ── Responsive ────────────────────────────────────────── */
     @media (max-width: 600px) {
       .overlay-logo { font-size: 2.2rem; }
@@ -627,8 +686,21 @@
       <div class="chat-header-badge">100% Private &middot; On-Device AI</div>
     </div>
 
+    <!-- Upgrade Banner (shown when Phase 2 model is cached) -->
+    <div class="upgrade-banner" id="upgrade-banner">
+      <span class="upgrade-banner-text" id="upgrade-banner-text"></span>
+      <button class="upgrade-btn upgrade-btn-yes" id="upgrade-yes-btn">Upgrade Now</button>
+      <button class="upgrade-btn upgrade-btn-no" id="upgrade-no-btn">Stay on Current</button>
+    </div>
+
     <!-- Messages -->
     <div class="messages-area" id="messages-area">
+      <!-- Sleep Banner (shown when idle auto-unloaded) -->
+      <div class="sleep-banner" id="sleep-banner">
+        <div class="sleep-banner-icon">&#128164;</div>
+        Model sleeping to save battery &mdash; type to wake
+      </div>
+
       <div class="welcome-card" id="welcome-card">
         <div class="welcome-icon">&#129433;</div>
         <div class="welcome-title">NeonLlama</div>
