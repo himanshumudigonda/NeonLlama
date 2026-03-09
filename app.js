@@ -1,4 +1,4 @@
-﻿import * as webllm from "https://esm.run/@mlc-ai/web-llm";
+﻿import * as webllm from "https://cdn.jsdelivr.net/npm/@mlc-ai/web-llm@0.2.79/+esm";
 
 /* -- System Prompt ------------------------------------------ */
 const SYSTEM_PROMPT = "You are LlamaChat, a helpful and concise AI assistant running 100% privately in the user's browser. Be friendly and accurate.";
@@ -307,7 +307,10 @@ async function loadModel(modelId, showOverlay, _retried = false) {
     engine = await webllm.CreateWebWorkerMLCEngine(
       currentWorker,
       modelId,
-      { initProgressCallback },
+      {
+        initProgressCallback,
+        appConfig: webllm.prebuiltAppConfig,
+      },
     );
 
     if (showOverlay) handleLoadComplete(modelId);
@@ -372,10 +375,13 @@ async function backgroundCachePhase2() {
   let bgWorker = null;
   try {
     bgWorker = new Worker("./worker.js", { type: "module" });
-    const bgEngine = await webllm.CreateWebWorkerMLCEngine(
+    engine = await webllm.CreateWebWorkerMLCEngine(
       bgWorker,
       state.phase2Model.id,
-      { initProgressCallback: () => {} },
+      {
+        initProgressCallback: () => {},
+        appConfig: webllm.prebuiltAppConfig,
+      },
     );
 
     /* Weights are now cached — unload immediately to free GPU */
