@@ -249,7 +249,7 @@ function handleLoadComplete(modelId) {
    ============================================================ */
 
 /* -- Load a model (generic) --------------------------------- */
-async function loadModel(modelId, showOverlay) {
+async function loadModel(modelId, showOverlay, _retried = false) {
   const model = MODELS.find(m => m.id === modelId);
   if (!model) {
     console.error("Invalid model ID:", modelId);
@@ -326,6 +326,26 @@ async function loadModel(modelId, showOverlay) {
       try { currentWorker.terminate(); } catch (_) {}
       currentWorker = null;
     }
+
+    /* Auto-retry: if Cache API failed (stale/corrupt cache), clear all caches and try once */
+    const isCacheError = err.message?.includes("Cache") || err.message?.includes("cache") || err.message?.includes("NetworkError");
+    if (isCacheError && !_retried) {
+      console.warn("[loadModel] Cache/network error — clearing caches and retrying...");
+      if (showOverlay) {
+        dom.overlayStatus.textContent = "Cache error — clearing & retrying...";
+        dom.overlayPercent.textContent = "0%";
+        dom.progressBarFill.style.width = "0%";
+      }
+      try {
+        const keys = await caches.keys();
+        for (const key of keys) await caches.delete(key);
+        console.log("[loadModel] Cleared", keys.length, "cache(s)");
+      } catch (_) {}
+      await new Promise(r => setTimeout(r, 500));
+      state.isLoading = false;
+      return loadModel(modelId, showOverlay, true);
+    }
+
     state.isLoading = false;
     const isOOM = err.message?.includes("memory") || err.message?.includes("OOM") || err.message?.includes("allocation");
     const errMsg = err.message || err.toString() || "Unknown error loading model";
@@ -711,14 +731,23 @@ function setupInput() {
     await loadModel(target.id, true);
   });
 
-  dom.overlayRetryBtn.addEventListener("click", () => {
+  dom.overlayRetryBtn.addEventListener("click", async () => {
     dom.overlayError.style.display = "none";
+    /* Clear caches before manual retry in case of stale/corrupt data */
+    try {
+      const keys = await caches.keys();
+      for (const key of keys) await caches.delete(key);
+    } catch (_) {}
     const id = state.selectedModel ? state.selectedModel.id : PHASE1_MODEL.id;
     loadModel(id, true);
   });
 
-  dom.overlayFallbackBtn.addEventListener("click", () => {
+  dom.overlayFallbackBtn.addEventListener("click", async () => {
     dom.overlayError.style.display = "none";
+    try {
+      const keys = await caches.keys();
+      for (const key of keys) await caches.delete(key);
+    } catch (_) {}
     loadModel(PHASE1_MODEL.id, true);
   });
 
