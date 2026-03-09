@@ -1,4 +1,4 @@
-﻿import { CreateWebWorkerMLCEngine } from "https://esm.run/@mlc-ai/web-llm";
+﻿import * as webllm from "https://esm.run/@mlc-ai/web-llm";
 
 /* -- System Prompt ------------------------------------------ */
 const SYSTEM_PROMPT = "You are LlamaChat, a helpful and concise AI assistant running 100% privately in the user's browser. Be friendly and accurate.";
@@ -299,7 +299,12 @@ async function loadModel(modelId, showOverlay) {
 
     currentWorker = new Worker("./worker.js", { type: "module" });
 
-    engine = await CreateWebWorkerMLCEngine(
+    /* Catch worker-level errors (e.g. failed ESM import inside worker) */
+    currentWorker.onerror = (e) => {
+      console.error("[Worker Error]", e.message, e);
+    };
+
+    engine = await webllm.CreateWebWorkerMLCEngine(
       currentWorker,
       modelId,
       { initProgressCallback },
@@ -323,8 +328,10 @@ async function loadModel(modelId, showOverlay) {
     }
     state.isLoading = false;
     const isOOM = err.message?.includes("memory") || err.message?.includes("OOM") || err.message?.includes("allocation");
+    const errMsg = err.message || err.toString() || "Unknown error loading model";
+    console.error("[loadModel Error]", errMsg, err);
     if (showOverlay) {
-      handleError(err.message || "Failed to load model", true, isOOM);
+      handleError(errMsg, true, isOOM);
     } else {
       console.error("[Phase2 bg load failed]", err.message);
     }
@@ -345,7 +352,7 @@ async function backgroundCachePhase2() {
   let bgWorker = null;
   try {
     bgWorker = new Worker("./worker.js", { type: "module" });
-    const bgEngine = await CreateWebWorkerMLCEngine(
+    const bgEngine = await webllm.CreateWebWorkerMLCEngine(
       bgWorker,
       state.phase2Model.id,
       { initProgressCallback: () => {} },
