@@ -375,7 +375,7 @@ async function backgroundCachePhase2() {
   let bgWorker = null;
   try {
     bgWorker = new Worker("./worker.js", { type: "module" });
-    engine = await webllm.CreateWebWorkerMLCEngine(
+    const bgEngine = await webllm.CreateWebWorkerMLCEngine(
       bgWorker,
       state.phase2Model.id,
       {
