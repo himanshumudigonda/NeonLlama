@@ -117,18 +117,18 @@
         90deg,
         transparent,
         transparent 28px,
-        rgba(0,0,0,0.4) 28px,
-        rgba(0,0,0,0.4) 32px
+        rgba(0,0,0,0.35) 28px,
+        rgba(0,0,0,0.35) 32px
       );
-      box-shadow: 0 0 12px var(--accent-glow),
-                  0 0 30px var(--accent-glow);
-      transition: width 0.3s ease;
-      animation: pulse-glow 1.5s ease-in-out infinite alternate;
+      box-shadow: 0 0 14px var(--accent-glow),
+                  0 0 35px var(--accent-glow);
+      transition: width 0.25s ease;
+      animation: glow-pulse 1.5s ease-in-out infinite alternate;
     }
 
-    @keyframes pulse-glow {
+    @keyframes glow-pulse {
       from { box-shadow: 0 0 8px var(--accent-glow); }
-      to   { box-shadow: 0 0 25px var(--accent-glow), 0 0 50px var(--accent-glow); }
+      to   { box-shadow: 0 0 28px var(--accent-glow), 0 0 55px var(--accent-glow); }
     }
 
     .overlay-status {
@@ -596,8 +596,8 @@
        Loading Overlay (visible on start)
        ════════════════════════════════════════════════════════ -->
   <div class="overlay" id="loading-overlay">
-    <div class="overlay-logo" id="overlay-title">NeonLlama</div>
-    <div class="overlay-subtitle" id="overlay-subtitle">Powered by Meta &middot; Runs in your browser</div>
+    <div class="overlay-logo" id="overlay-title">⚡ LlamaChat</div>
+    <div class="overlay-subtitle" id="overlay-subtitle">Powered by Meta &amp; Microsoft &middot; In-Browser</div>
 
     <div class="overlay-percent" id="overlay-percent">0%</div>
 
@@ -654,7 +654,7 @@
           disabled
         ></textarea>
         <button class="send-btn" id="send-btn" disabled>
-          <span id="send-btn-text">Initializing...</span>
+          <span id="send-btn-text">Select Model &uarr;</span>
         </button>
       </div>
     </div>

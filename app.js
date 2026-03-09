@@ -1,12 +1,7 @@
-﻿/* ============================================================
-   app.js - Main Thread Controller (ES Module)
-   Hardware detection, UI control, WebLLM engine management.
-   Uses official CreateWebWorkerMLCEngine for worker offloading.
-   ============================================================ */
-import * as webllm from "https://esm.run/@mlc-ai/web-llm";
+﻿import { CreateWebWorkerMLCEngine } from "https://esm.run/@mlc-ai/web-llm";
 
 /* -- System Prompt ------------------------------------------ */
-const SYSTEM_PROMPT = `You are NeonLlama, a helpful, fast, and concise AI assistant running 100% privately in the user's browser on their own device. Powered by Meta Llama or Microsoft Phi depending on the selected model. Be friendly, accurate, and to the point. Never mention that you are running locally unless the user asks. Format responses cleanly.`;
+const SYSTEM_PROMPT = "You are LlamaChat, a helpful and concise AI assistant running 100% privately in the user's browser. Be friendly and accurate.";
 
 /* -- Model Registry ----------------------------------------- */
 const MODELS = [
@@ -31,7 +26,7 @@ const MODELS = [
     sizeMB: 2200,
   },
   {
-    id: "Llama-3.1-8B-Instruct-q4f16_1-MLC",
+    id: "Llama-3.1-8B-Instruct-q4f32_1-MLC",
     label: "\uD83E\uDDE0 Powerful \u2014 Llama 3.1 8B  by Meta       (~4.5 GB)",
     brand: "Meta",
     brandIcon: "\uD83E\uDD99",
@@ -188,6 +183,7 @@ function handleLoadProgress(p) {
   const pct = Math.round(p.progress * 100);
   dom.overlayPercent.textContent = pct + "%";
   dom.progressBarFill.style.width = pct + "%";
+  dom.sendBtnText.textContent = "Loading... " + pct + "%";
 
   let statusText = p.text || "Loading model...";
   if (statusText.length > 60) {
@@ -215,7 +211,7 @@ function handleLoadProgress(p) {
   dom.overlayStats.textContent = statsText;
 
   if (pct > 5) {
-    dom.overlayCacheNote.textContent = "\u2713 Cached locally after this download";
+    dom.overlayCacheNote.textContent = "\u2713 Cached locally \u2014 instant next visit";
     dom.overlayCacheNote.style.opacity = "1";
   }
 }
@@ -329,9 +325,10 @@ function updateUIReady() {
 
 function updateUILoading() {
   dom.sendBtn.disabled = true;
-  dom.sendBtnText.textContent = "Initializing...";
+  dom.sendBtnText.textContent = "Loading... 0%";
   dom.chatInput.disabled = true;
   dom.chatInput.placeholder = "Loading model...";
+  dom.modelSelect.disabled = true;
 }
 
 function updateUIGenerating() {
@@ -350,8 +347,9 @@ function updateDeviceInfo() {
   const hw = state.hardware;
   const gpuStatus = hw.webgpu ? "WebGPU \u2713" : "WebGPU \u2717";
   const modelName = state.selectedModel ? state.selectedModel.id.split("-q")[0] : "None";
+  const brand = state.selectedModel ? state.selectedModel.brand : "";
   dom.deviceInfo.textContent =
-    "Device: " + hw.ram + " GB RAM \u00B7 " + hw.cores + " cores \u00B7 " + gpuStatus + " \u00B7 Auto-selected: " + modelName;
+    "Detected: " + hw.ram + " GB RAM \u00B7 " + gpuStatus + " \u00B7 Recommended: " + modelName + " by " + brand;
 }
 
 /* -- Populate Model Selector -------------------------------- */
@@ -463,6 +461,14 @@ async function loadSelectedModel() {
   dom.overlayError.style.display = "none";
 
   const modelId = state.selectedModel.id;
+
+  // Validate model ID (prevents .find() crash)
+  if (!MODELS.find(m => m.id === modelId)) {
+    console.error("Invalid model ID — must match prebuiltAppConfig exactly:", modelId);
+    handleError("Invalid model ID: " + modelId, false);
+    return;
+  }
+
   downloadStartTime = performance.now();
   lastProgressTime = downloadStartTime;
   lastProgressLoaded = 0;
@@ -485,7 +491,7 @@ async function loadSelectedModel() {
 
     currentWorker = new Worker("./worker.js", { type: "module" });
 
-    engine = await webllm.CreateWebWorkerMLCEngine(
+    engine = await CreateWebWorkerMLCEngine(
       currentWorker,
       modelId,
       { initProgressCallback: initProgressCallback },
@@ -598,6 +604,7 @@ function setupInput() {
     const idx = parseInt(dom.modelSelect.value, 10);
     state.selectedModel = MODELS[idx];
     updateDeviceInfo();
+    loadSelectedModel();
   });
 
   if (dom.loadModelBtn) {
@@ -712,6 +719,13 @@ function setupNetworkStatus() {
     console.log("[Network] Back online");
   });
 }
+
+/* -- Global Error Handler ----------------------------------- */
+window.onerror = (msg) => {
+  if (typeof msg === "string" && (msg.includes("memory") || msg.includes("Out of"))) {
+    handleError("Out of memory — try switching to the \u26A1 Light model", true, true);
+  }
+};
 
 /* -- Boot Sequence ------------------------------------------ */
 async function boot() {
