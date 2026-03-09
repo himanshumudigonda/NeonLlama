@@ -1,17 +1,17 @@
-# 🦙 LlamaChat — Private AI Chat in Your Browser
+# 🦙 NeonLlama — Private AI Chat in Your Browser
 
 > **Run Meta Llama & Microsoft Phi models 100% in your browser. No servers. No API keys. No data ever leaves your device.**
 
-![LlamaChat Banner](https://img.shields.io/badge/LlamaChat-Private_AI-c8f000?style=for-the-badge&logo=meta&logoColor=black)
+![NeonLlama Banner](https://img.shields.io/badge/NeonLlama-Private_AI-c8f000?style=for-the-badge&logo=meta&logoColor=black)
 ![WebGPU](https://img.shields.io/badge/WebGPU-Powered-00ff88?style=for-the-badge)
 ![Zero Backend](https://img.shields.io/badge/Backend-None_Required-ff4444?style=for-the-badge)
 ![License](https://img.shields.io/badge/License-MIT-blue?style=for-the-badge)
 
 ---
 
-## ⚡ What is LlamaChat?
+## ⚡ What is NeonLlama?
 
-LlamaChat is a **fully client-side AI chatbot** that runs large language models directly in your browser using **WebGPU**. Everything — the model weights, the inference engine, your conversations — stays on YOUR device. 
+NeonLlama is a **fully client-side AI chatbot** that runs large language models directly in your browser using **WebGPU**. Everything — the model weights, the inference engine, your conversations — stays on YOUR device. 
 
 - **Zero backend** — no servers, no cloud, no API keys
 - **Zero cost** — completely free to run, forever
@@ -35,7 +35,7 @@ The app **auto-detects your hardware** and recommends the best model for your de
 ## 🚀 Try It Now
 
 ### Option 1: Use the Live Demo
-👉 **[Launch LlamaChat](#)** *(add your Netlify URL here after deploying)*
+👉 **[Launch NeonLlama](#)** *(add your Netlify URL here after deploying)*
 
 ### Option 2: Run Locally (No Install Needed)
 
@@ -43,8 +43,8 @@ You need a simple static file server because WebGPU requires specific HTTP heade
 
 **Using Python (already installed on most systems):**
 ```bash
-git clone https://github.com/YOUR_USERNAME/llamachat.git
-cd llamachat
+git clone https://github.com/YOUR_USERNAME/neonllama.git
+cd neonllama
 python -m http.server 8080
 ```
 > ⚠️ Note: Python's simple server doesn't set CORS headers. For full functionality, use one of the methods below.
@@ -90,7 +90,7 @@ The `netlify.toml` and `_headers` files automatically configure the required COR
 ## 🏗️ Project Structure
 
 ```
-llamachat/
+neonllama/
 ├── index.html      → Full UI with inline CSS (GTA-inspired dark theme)
 ├── app.js          → Main thread: hardware detection, UI, worker bridge
 ├── worker.js       → Web Worker: AI engine lifecycle (WebLLM)
@@ -175,7 +175,7 @@ MIT License — Use it, modify it, share it. Free forever.
 
 ## ⭐ Star This Repo!
 
-If you find LlamaChat useful, please give it a ⭐ on GitHub — it helps others discover it!
+If you find NeonLlama useful, please give it a ⭐ on GitHub — it helps others discover it!
 
 ---
 
