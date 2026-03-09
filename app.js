@@ -1,4 +1,4 @@
-﻿import * as webllm from "https://cdn.jsdelivr.net/npm/@mlc-ai/web-llm@0.2.79/+esm";
+﻿import * as webllm from "https://esm.run/@mlc-ai/web-llm";
 
 /* -- System Prompt ------------------------------------------ */
 const SYSTEM_PROMPT = "You are LlamaChat, a helpful and concise AI assistant running 100% privately in the user's browser. Be friendly and accurate.";
@@ -225,18 +225,28 @@ function handleLoadComplete(modelId) {
 
   dom.overlayPercent.textContent  = "100%";
   dom.progressBarFill.style.width = "100%";
-  dom.overlayStatus.textContent   = "Model ready!";
+  dom.overlayStatus.textContent   = "✓ Model ready!";
   dom.overlayStats.textContent    = "";
 
+  // Wait 800ms so user sees 100%, then fade overlay AND reveal chat together
   setTimeout(() => {
+    // 1. Start fading overlay out
     dom.overlay.style.transition = "opacity 0.6s ease";
     dom.overlay.style.opacity    = "0";
+
+    // 2. Show chat container underneath (starts transparent due to CSS transition)
+    dom.chatContainer.style.display = "flex";
+    // Force reflow so transition fires
+    dom.chatContainer.offsetHeight;
+    dom.chatContainer.classList.add("visible");
+
+    // 3. After fade completes, fully remove overlay from DOM flow
     setTimeout(() => {
       dom.overlay.style.display    = "none";
       dom.overlay.style.opacity    = "1";
       dom.overlay.style.transition = "";
     }, 600);
-  }, 400);
+  }, 800);
 
   updateUIReady();
   updateWelcomeCard();
@@ -307,10 +317,7 @@ async function loadModel(modelId, showOverlay, _retried = false) {
     engine = await webllm.CreateWebWorkerMLCEngine(
       currentWorker,
       modelId,
-      {
-        initProgressCallback,
-        appConfig: webllm.prebuiltAppConfig,
-      },
+      { initProgressCallback },
     );
 
     if (showOverlay) handleLoadComplete(modelId);
@@ -378,10 +385,7 @@ async function backgroundCachePhase2() {
     const bgEngine = await webllm.CreateWebWorkerMLCEngine(
       bgWorker,
       state.phase2Model.id,
-      {
-        initProgressCallback: () => {},
-        appConfig: webllm.prebuiltAppConfig,
-      },
+      { initProgressCallback: () => {} },
     );
 
     /* Weights are now cached — unload immediately to free GPU */
@@ -474,43 +478,33 @@ async function streamChat(msgs) {
   const startTime = performance.now();
   let tokenCount = 0;
 
+  // stream_options.include_usage removed — causes usage chunk to arrive before
+  // content on 2nd+ messages, making finishStream fire early with blank response.
   const chunks = await engine.chat.completions.create({
     messages: msgs,
     temperature: 0.7,
     top_p: 0.95,
     max_tokens: 1024,
     stream: true,
-    stream_options: { include_usage: true },
   });
 
+  // Drain entire stream before finishing — guarantees all tokens received
   for await (const chunk of chunks) {
     const delta = chunk.choices?.[0]?.delta?.content;
-    if (delta) {
+    if (typeof delta === "string" && delta.length > 0) {
       tokenCount++;
       state.streamBuffer += delta;
       updateBotMessage(state.streamBuffer, true);
     }
-    if (chunk.usage) {
-      const elapsed = performance.now() - startTime;
-      finishStream({
-        tokens: chunk.usage.completion_tokens || tokenCount,
-        prompt_tokens: chunk.usage.prompt_tokens || 0,
-        ms: Math.round(elapsed),
-        tokensPerSecond: Math.round(((chunk.usage.completion_tokens || tokenCount) / elapsed) * 1000),
-      });
-      return;
-    }
   }
 
-  /* Fallback if no usage chunk came */
-  if (state.isGenerating) {
-    const elapsed = performance.now() - startTime;
-    finishStream({
-      tokens: tokenCount, prompt_tokens: 0,
-      ms: Math.round(elapsed),
-      tokensPerSecond: tokenCount > 0 ? Math.round((tokenCount / elapsed) * 1000) : 0,
-    });
-  }
+  const elapsed = performance.now() - startTime;
+  finishStream({
+    tokens: tokenCount,
+    prompt_tokens: 0,
+    ms: Math.round(elapsed),
+    tokensPerSecond: tokenCount > 0 ? Math.round((tokenCount / elapsed) * 1000) : 0,
+  });
 }
 
 function finishStream(stats) {
@@ -837,11 +831,9 @@ async function boot() {
   console.log("[Boot] Phase 1 \u2192 Loading", PHASE1_MODEL.id);
   const ok = await loadModel(PHASE1_MODEL.id, true);
 
-  /* Phase 2: Silently background-cache the bigger model */
-  if (ok && state.phase2Model && state.phase2Model.id !== PHASE1_MODEL.id) {
-    console.log("[Boot] Phase 2 \u2192 Background caching", state.phase2Model.id);
-    backgroundCachePhase2();
-  }
+  /* Phase 2: background caching disabled — two simultaneous engines
+     cause GPU memory contention that hangs the main engine on 2nd message.
+     User can switch model manually via dropdown. */
 }
 
 /* -- DOMContentLoaded --------------------------------------- */
