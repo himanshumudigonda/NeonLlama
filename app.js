@@ -1,7 +1,7 @@
 ﻿import * as webllm from "https://esm.run/@mlc-ai/web-llm";
 
 /* -- System Prompt ------------------------------------------ */
-const SYSTEM_PROMPT = "You are LlamaChat, a helpful and concise AI assistant running 100% privately in the user's browser. Be friendly and accurate.";
+const SYSTEM_PROMPT = "You are a helpful AI. Be concise.";
 
 /* -- Model Registry (Rule 3 — exact IDs) ------------------- */
 const MODELS = [
@@ -467,37 +467,37 @@ async function wakeFromSleep() {
 async function streamChat(msgs) {
   const startTime = performance.now();
   let tokenCount = 0;
+  let firstTokenTime = 0;
 
-  // CRITICAL: NO stream_options — usage chunk fires early and causes early return
-  // which leaves the engine worker still running → 2nd message hangs
+  // CRITICAL: no stream_options — usage chunk triggers early return,
+  // leaving engine worker still running → 2nd message hangs
   const chunks = await engine.chat.completions.create({
     messages: msgs,
     temperature: 0.6,
     top_p: 1.0,
-    max_tokens: 1024,
+    max_tokens: 512,   // 512 keeps responses fast on weak/integrated GPUs
     stream: true,
-    // NO stream_options here — intentional
   });
 
-  // Drain the FULL stream before doing anything else
+  // Drain the FULL stream — never return early inside loop
   for await (const chunk of chunks) {
     const delta = chunk.choices?.[0]?.delta?.content;
     if (delta) {
+      if (tokenCount === 0) firstTokenTime = performance.now(); // first real token
       tokenCount++;
       state.streamBuffer += delta;
       updateBotMessage(state.streamBuffer, true);
     }
-    // Never return early — always let the loop finish naturally
   }
 
-  // Only call finishStream ONCE, AFTER the loop is fully done
-  const elapsed = performance.now() - startTime;
-  finishStream({
-    tokens: tokenCount,
-    prompt_tokens: 0,
-    ms: Math.round(elapsed),
-    tokensPerSecond: tokenCount > 0 ? Math.round((tokenCount / elapsed) * 1000) : 0,
-  });
+  // Measure generation speed excluding prefill (time-to-first-token)
+  const totalMs  = Math.round(performance.now() - startTime);
+  const genMs    = firstTokenTime > 0 ? (performance.now() - firstTokenTime) : totalMs;
+  const tps      = (tokenCount > 1 && genMs > 0)
+    ? parseFloat(((tokenCount - 1) / genMs * 1000).toFixed(1))
+    : 0;
+
+  finishStream({ tokens: tokenCount, ms: totalMs, tokensPerSecond: tps });
 }
 
 function finishStream(stats) {
@@ -508,7 +508,7 @@ function finishStream(stats) {
     if (cursor) cursor.remove();
     const el = document.createElement("div");
     el.className = "msg-stats";
-    el.textContent = stats.tokens + " tokens \u00B7 " + (stats.ms / 1000).toFixed(1) + "s \u00B7 " + stats.tokensPerSecond + " tok/s";
+    el.textContent = stats.tokens + " tokens · " + (stats.ms / 1000).toFixed(1) + "s · " + stats.tokensPerSecond + " tok/s";
     lastBotMsg.appendChild(el);
   }
   state.messages.push({ role: "assistant", content: state.streamBuffer });
@@ -686,10 +686,13 @@ async function sendMessage() {
   updateUIGenerating();
   appendBotBubble();
 
+  // Trim history: keep last 8 messages max (4 turns) to prevent context blowup
+  const trimmedMsgs = state.messages.slice(-8);
+
   try {
     await streamChat([
       { role: "system", content: SYSTEM_PROMPT },
-      ...state.messages,
+      ...trimmedMsgs,
     ]);
   } catch (err) {
     state.isGenerating = false;
