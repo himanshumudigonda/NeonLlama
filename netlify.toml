@@ -1,8 +1,15 @@
 [build]
   publish = "."
 
+# Main app pages — COOP only (COEP removed — breaks HuggingFace cache)
 [[headers]]
   for = "/*"
   [headers.values]
     Cross-Origin-Opener-Policy = "same-origin"
-    Cross-Origin-Embedder-Policy = "credentialless"
+
+# Service Worker — needs specific scope header
+[[headers]]
+  for = "/sw.js"
+  [headers.values]
+    Service-Worker-Allowed = "/"
+    Cache-Control = "no-cache"

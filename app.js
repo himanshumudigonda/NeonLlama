@@ -225,28 +225,18 @@ function handleLoadComplete(modelId) {
 
   dom.overlayPercent.textContent  = "100%";
   dom.progressBarFill.style.width = "100%";
-  dom.overlayStatus.textContent   = "✓ Model ready!";
+  dom.overlayStatus.textContent   = "Model ready!";
   dom.overlayStats.textContent    = "";
 
-  // Wait 800ms so user sees 100%, then fade overlay AND reveal chat together
   setTimeout(() => {
-    // 1. Start fading overlay out
     dom.overlay.style.transition = "opacity 0.6s ease";
     dom.overlay.style.opacity    = "0";
-
-    // 2. Show chat container underneath (starts transparent due to CSS transition)
-    dom.chatContainer.style.display = "flex";
-    // Force reflow so transition fires
-    dom.chatContainer.offsetHeight;
-    dom.chatContainer.classList.add("visible");
-
-    // 3. After fade completes, fully remove overlay from DOM flow
     setTimeout(() => {
       dom.overlay.style.display    = "none";
       dom.overlay.style.opacity    = "1";
       dom.overlay.style.transition = "";
     }, 600);
-  }, 800);
+  }, 400);
 
   updateUIReady();
   updateWelcomeCard();
@@ -478,33 +468,43 @@ async function streamChat(msgs) {
   const startTime = performance.now();
   let tokenCount = 0;
 
-  // stream_options.include_usage removed — causes usage chunk to arrive before
-  // content on 2nd+ messages, making finishStream fire early with blank response.
   const chunks = await engine.chat.completions.create({
     messages: msgs,
-    temperature: 0.7,
-    top_p: 0.95,
+    temperature: 0.6,   // lower = less sampling math = faster
+    top_p: 1.0,         // skip nucleus sampling = faster
     max_tokens: 1024,
     stream: true,
+    stream_options: { include_usage: true },
   });
 
-  // Drain entire stream before finishing — guarantees all tokens received
   for await (const chunk of chunks) {
     const delta = chunk.choices?.[0]?.delta?.content;
-    if (typeof delta === "string" && delta.length > 0) {
+    if (delta) {
       tokenCount++;
       state.streamBuffer += delta;
       updateBotMessage(state.streamBuffer, true);
     }
+    if (chunk.usage) {
+      const elapsed = performance.now() - startTime;
+      finishStream({
+        tokens: chunk.usage.completion_tokens || tokenCount,
+        prompt_tokens: chunk.usage.prompt_tokens || 0,
+        ms: Math.round(elapsed),
+        tokensPerSecond: Math.round(((chunk.usage.completion_tokens || tokenCount) / elapsed) * 1000),
+      });
+      return;
+    }
   }
 
-  const elapsed = performance.now() - startTime;
-  finishStream({
-    tokens: tokenCount,
-    prompt_tokens: 0,
-    ms: Math.round(elapsed),
-    tokensPerSecond: tokenCount > 0 ? Math.round((tokenCount / elapsed) * 1000) : 0,
-  });
+  /* Fallback if no usage chunk came */
+  if (state.isGenerating) {
+    const elapsed = performance.now() - startTime;
+    finishStream({
+      tokens: tokenCount, prompt_tokens: 0,
+      ms: Math.round(elapsed),
+      tokensPerSecond: tokenCount > 0 ? Math.round((tokenCount / elapsed) * 1000) : 0,
+    });
+  }
 }
 
 function finishStream(stats) {
@@ -810,6 +810,13 @@ window.onerror = (msg) => {
 async function boot() {
   cacheDom();
 
+  /* ── Register Download Accelerator Service Worker ── */
+  if ("serviceWorker" in navigator) {
+    navigator.serviceWorker.register("./sw.js")
+      .then(reg => console.log("[SW] Download accelerator registered:", reg.scope))
+      .catch(err => console.warn("[SW] Registration failed (non-critical):", err.message));
+  }
+
   const hardware = await detectHardware();
 
   if (!hardware.webgpu) {
@@ -831,9 +838,11 @@ async function boot() {
   console.log("[Boot] Phase 1 \u2192 Loading", PHASE1_MODEL.id);
   const ok = await loadModel(PHASE1_MODEL.id, true);
 
-  /* Phase 2: background caching disabled — two simultaneous engines
-     cause GPU memory contention that hangs the main engine on 2nd message.
-     User can switch model manually via dropdown. */
+  /* Phase 2: Silently background-cache the bigger model */
+  if (ok && state.phase2Model && state.phase2Model.id !== PHASE1_MODEL.id) {
+    console.log("[Boot] Phase 2 \u2192 Background caching", state.phase2Model.id);
+    // backgroundCachePhase2(); — disabled
+  }
 }
 
 /* -- DOMContentLoaded --------------------------------------- */
