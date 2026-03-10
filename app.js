@@ -493,6 +493,18 @@ async function streamChat(msgs) {
     stream: true,
   });
 
+  // Throttled rendering — batch token updates to animation frames
+  let renderPending = false;
+  function scheduleRender() {
+    if (!renderPending) {
+      renderPending = true;
+      requestAnimationFrame(() => {
+        renderPending = false;
+        updateBotMessage(state.streamBuffer, true);
+      });
+    }
+  }
+
   // Drain FULL stream — NO early return inside loop
   for await (const chunk of chunks) {
     const delta = chunk.choices?.[0]?.delta?.content;
@@ -500,9 +512,11 @@ async function streamChat(msgs) {
       if (!firstTokenAt) firstTokenAt = performance.now();
       tokenCount++;
       state.streamBuffer += delta;
-      updateBotMessage(state.streamBuffer, true);
+      scheduleRender();
     }
   }
+  // Final render to ensure last tokens are shown
+  updateBotMessage(state.streamBuffer, true);
 
   const totalMs = performance.now() - startTime;
   const genMs   = firstTokenAt ? (performance.now() - firstTokenAt) : totalMs;
@@ -649,9 +663,12 @@ function getLastBotBubble() {
   return all.length > 0 ? all[all.length - 1] : null;
 }
 
+let _scrollRAF = 0;
 function scrollToBottom() {
-  requestAnimationFrame(() => {
-    dom.messagesArea.lastElementChild?.scrollIntoView({ behavior: "smooth", block: "end" });
+  if (_scrollRAF) return; // already scheduled
+  _scrollRAF = requestAnimationFrame(() => {
+    _scrollRAF = 0;
+    dom.messagesArea.scrollTop = dom.messagesArea.scrollHeight;
   });
 }
 
