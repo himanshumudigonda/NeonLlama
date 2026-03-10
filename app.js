@@ -1,7 +1,7 @@
 ﻿import * as webllm from "https://esm.run/@mlc-ai/web-llm";
 
 /* -- System Prompt ------------------------------------------ */
-const SYSTEM_PROMPT = "You are a helpful AI. Be concise.";
+const SYSTEM_PROMPT = "You are LlamaChat, a helpful and concise AI assistant running 100% privately in the user's browser. Be friendly and accurate.";
 
 /* -- Model Registry (Rule 3 — exact IDs) ------------------- */
 const MODELS = [
@@ -92,8 +92,22 @@ function cacheDom() {
 }
 
 /* -- Hardware Detection ------------------------------------- */
+/* -- Device / Platform Detection --------------------------- */
+function detectDevice() {
+  const ua = navigator.userAgent || "";
+  const isIOS     = /iPad|iPhone|iPod/.test(ua) || (navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1);
+  const isAndroid = /Android/.test(ua);
+  const isMobile  = isIOS || isAndroid || /Mobi|Mobile/.test(ua);
+  const isChrome  = /Chrome\//.test(ua) && !/Edg\//.test(ua);
+  // iOS blocks WebGPU on ALL browsers (they all use WebKit engine)
+  // Android needs Chrome 113+ for WebGPU
+  const mightSupportWebGPU = !isIOS && (isChrome || !isMobile);
+  return { isIOS, isAndroid, isMobile, isChrome, mightSupportWebGPU };
+}
+
 async function detectHardware() {
   const t0 = performance.now();
+  const device = detectDevice();
 
   const getGPUInfo = () =>
     new Promise((resolve) => {
@@ -126,8 +140,9 @@ async function detectHardware() {
     checkWebGPU(),
   ]);
 
-  state.hardware = { ram, cores, gpu: gpuInfo, webgpu: webgpuSupported };
+  state.hardware = { ram, cores, gpu: gpuInfo, webgpu: webgpuSupported, device };
   console.log("[HW]", ram, "GB RAM,", cores, "cores,", gpuInfo, "WebGPU:", webgpuSupported,
+    "mobile:", device.isMobile, "iOS:", device.isIOS,
     "(" + (performance.now() - t0).toFixed(0) + "ms)");
   return state.hardware;
 }
@@ -467,37 +482,32 @@ async function wakeFromSleep() {
 async function streamChat(msgs) {
   const startTime = performance.now();
   let tokenCount = 0;
-  let firstTokenTime = 0;
+  let firstTokenAt = 0;
 
-  // CRITICAL: no stream_options — usage chunk triggers early return,
-  // leaving engine worker still running → 2nd message hangs
+  // NO stream_options — causes usage chunk mid-stream → early return → engine stuck → msg 2 fails
   const chunks = await engine.chat.completions.create({
     messages: msgs,
     temperature: 0.6,
     top_p: 1.0,
-    max_tokens: 512,   // 512 keeps responses fast on weak/integrated GPUs
+    max_tokens: 2048,
     stream: true,
   });
 
-  // Drain the FULL stream — never return early inside loop
+  // Drain FULL stream — NO early return inside loop
   for await (const chunk of chunks) {
     const delta = chunk.choices?.[0]?.delta?.content;
     if (delta) {
-      if (tokenCount === 0) firstTokenTime = performance.now(); // first real token
+      if (!firstTokenAt) firstTokenAt = performance.now();
       tokenCount++;
       state.streamBuffer += delta;
       updateBotMessage(state.streamBuffer, true);
     }
   }
 
-  // Measure generation speed excluding prefill (time-to-first-token)
-  const totalMs  = Math.round(performance.now() - startTime);
-  const genMs    = firstTokenTime > 0 ? (performance.now() - firstTokenTime) : totalMs;
-  const tps      = (tokenCount > 1 && genMs > 0)
-    ? parseFloat(((tokenCount - 1) / genMs * 1000).toFixed(1))
-    : 0;
-
-  finishStream({ tokens: tokenCount, ms: totalMs, tokensPerSecond: tps });
+  const totalMs = performance.now() - startTime;
+  const genMs   = firstTokenAt ? (performance.now() - firstTokenAt) : totalMs;
+  const tps     = tokenCount > 1 ? +((tokenCount / genMs) * 1000).toFixed(1) : 0;
+  finishStream({ tokens: tokenCount, ms: Math.round(totalMs), tokensPerSecond: tps });
 }
 
 function finishStream(stats) {
@@ -508,7 +518,7 @@ function finishStream(stats) {
     if (cursor) cursor.remove();
     const el = document.createElement("div");
     el.className = "msg-stats";
-    el.textContent = stats.tokens + " tokens · " + (stats.ms / 1000).toFixed(1) + "s · " + stats.tokensPerSecond + " tok/s";
+    el.textContent = stats.tokens + " tokens \u00B7 " + (stats.ms / 1000).toFixed(1) + "s \u00B7 " + stats.tokensPerSecond + " tok/s";
     lastBotMsg.appendChild(el);
   }
   state.messages.push({ role: "assistant", content: state.streamBuffer });
@@ -686,13 +696,10 @@ async function sendMessage() {
   updateUIGenerating();
   appendBotBubble();
 
-  // Trim history: keep last 8 messages max (4 turns) to prevent context blowup
-  const trimmedMsgs = state.messages.slice(-8);
-
   try {
     await streamChat([
       { role: "system", content: SYSTEM_PROMPT },
-      ...trimmedMsgs,
+      ...state.messages,
     ]);
   } catch (err) {
     state.isGenerating = false;
@@ -794,6 +801,32 @@ window.onerror = (msg) => {
   }
 };
 
+/* -- Mobile Error Screens ----------------------------------- */
+function showMobileError(type) {
+  const el = document.getElementById("mobile-error");
+  if (!el) { document.getElementById("webgpu-error").style.display = "flex"; return; }
+
+  const title  = el.querySelector("#me-title");
+  const body   = el.querySelector("#me-body");
+  const action = el.querySelector("#me-action");
+
+  if (type === "ios") {
+    title.textContent  = "iPhone / iPad Not Supported";
+    body.innerHTML     = "Apple blocks WebGPU on all iOS browsers — even Chrome on iPhone uses Apple's engine.<br><br>To use NeonLlama, open this page on a <strong>Windows, Mac, or Android</strong> device.";
+    action.innerHTML   = '<a href="https://neonllama.netlify.app" style="display:none"></a>';
+  } else if (type === "android-not-chrome") {
+    title.textContent  = "Switch to Chrome";
+    body.innerHTML     = "Your Android device supports WebGPU, but <strong>only in Chrome</strong>.<br><br>Open this page in <strong>Google Chrome</strong> on your Android phone.";
+    action.innerHTML   = '<a href="https://play.google.com/store/apps/details?id=com.android.chrome" target="_blank" rel="noopener">Get Chrome for Android</a>';
+  } else {
+    title.textContent  = "Enable WebGPU in Chrome";
+    body.innerHTML     = "Your Android's Chrome needs WebGPU turned on.<br><br>1. Open <strong>chrome://flags</strong><br>2. Search <strong>"WebGPU"</strong><br>3. Set to <strong>Enabled</strong><br>4. Tap Relaunch";
+    action.innerHTML   = '<a href="chrome://flags/#enable-unsafe-webgpu" rel="noopener">Open Chrome Flags</a>';
+  }
+  el.style.display = "flex";
+}
+
+
 /* ============================================================
    BOOT SEQUENCE — The GTA Loading Experience
    ============================================================
@@ -810,8 +843,23 @@ async function boot() {
 
   if (!hardware.webgpu) {
     dom.overlay.style.display = "none";
-    dom.webgpuError.style.display = "flex";
+    const dev = hardware.device;
+    // Show platform-specific guidance
+    if (dev.isIOS) {
+      showMobileError("ios");
+    } else if (dev.isMobile && !dev.isChrome) {
+      showMobileError("android-not-chrome");
+    } else if (dev.isMobile) {
+      showMobileError("android-chrome");
+    } else {
+      dom.webgpuError.style.display = "flex";
+    }
     return;
+  }
+
+  // Mobile + WebGPU works — add mobile class for UI tweaks
+  if (hardware.device && hardware.device.isMobile) {
+    document.body.classList.add("is-mobile");
   }
 
   /* Determine Phase 2 target based on RAM */

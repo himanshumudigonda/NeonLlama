@@ -1,114 +1,66 @@
 <!DOCTYPE html>
-<html lang="en" data-theme="dark">
+<html lang="en">
 <head>
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover, maximum-scale=1.0">
   <title>NeonLlama — Private AI in Your Browser</title>
-  <meta name="description" content="Run Llama & Phi AI models 100% in your browser. No servers, no API keys, completely private.">
-  <meta name="theme-color" content="#0a0a0f" media="(prefers-color-scheme: dark)">
-  <meta name="theme-color" content="#f5f5f7" media="(prefers-color-scheme: light)">
+  <meta name="description" content="Run AI models 100% in your browser. No servers, no API keys, no data leaves your device.">
 
   <!-- PWA -->
   <link rel="manifest" href="./manifest.json">
+  <meta name="theme-color" content="#0a0a0a">
   <meta name="mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
   <meta name="apple-mobile-web-app-title" content="NeonLlama">
-  <link rel="apple-touch-icon" href="./icon-192.png">
 
-  <!-- Performance -->
-  <link rel="preconnect" href="https://cdn.jsdelivr.net" crossorigin>
+  <!-- Performance: Preconnect + Preload -->
+  <link rel="preconnect" href="https://esm.run" crossorigin>
   <link rel="preconnect" href="https://huggingface.co" crossorigin>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link rel="modulepreload" href="./worker.js">
-  <link href="https://fonts.googleapis.com/css2?family=Syne:wght@600;700;800&family=DM+Sans:ital,opsz,wght@0,9..40,400;0,9..40,500;1,9..40,400&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=Rajdhani:wght@600;700&family=Inter:wght@400;500&display=swap" rel="stylesheet">
 
   <style>
-    /* ═══════════════════════════════════════════════════════════
-       DESIGN TOKENS — Dark & Light
-    ═══════════════════════════════════════════════════════════ */
+    /* ── CSS Reset & Variables ──────────────────────────────── */
+    *, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; }
+
     :root {
-      --accent:        #b8ff00;
-      --accent-dim:    #8ab800;
-      --accent-glow:   rgba(184,255,0,0.25);
-      --accent-text:   #000;
-      --error:         #ff5a5a;
-      --success:       #34d399;
-      --radius-sm:     8px;
-      --radius-md:     14px;
-      --radius-lg:     20px;
-      --radius-xl:     28px;
+      --bg:           #0a0a0a;
+      --surface:      #111111;
+      --surface2:     #1a1a1a;
+      --accent:       #c8f000;
+      --accent-dim:   #8aaa00;
+      --accent-glow:  rgba(200, 240, 0, 0.3);
+      --text:         #e8e8e8;
+      --text-muted:   #555555;
+      --user-bubble:  #1c1c1c;
+      --bot-bubble:   #0d0d0d;
+      --border:       #222222;
+      --error:        #ff4444;
+      --success:      #00ff88;
+      /* safe area for iPhone notch / home bar */
+      --sat: env(safe-area-inset-top, 0px);
+      --sab: env(safe-area-inset-bottom, 0px);
+      --sal: env(safe-area-inset-left, 0px);
+      --sar: env(safe-area-inset-right, 0px);
     }
 
-    [data-theme="dark"] {
-      --bg:            #0a0a0f;
-      --bg2:           #0f0f17;
-      --surface:       #141420;
-      --surface2:      #1c1c2e;
-      --surface3:      #24243a;
-      --border:        rgba(255,255,255,0.08);
-      --border-strong: rgba(255,255,255,0.14);
-      --text:          #e8e8f0;
-      --text-2:        #9898b8;
-      --text-3:        #55556a;
-      --user-bg:       #1c1c2e;
-      --bot-bg:        #141420;
-      --header-blur:   rgba(10,10,15,0.85);
-      --overlay-bg:    #0a0a0f;
-      --shadow:        0 8px 32px rgba(0,0,0,0.5);
-      --shadow-sm:     0 2px 8px rgba(0,0,0,0.3);
-    }
-
-    [data-theme="light"] {
-      --bg:            #f8f8fc;
-      --bg2:           #f0f0f8;
-      --surface:       #ffffff;
-      --surface2:      #f2f2f8;
-      --surface3:      #e8e8f2;
-      --border:        rgba(0,0,0,0.08);
-      --border-strong: rgba(0,0,0,0.14);
-      --text:          #111122;
-      --text-2:        #555570;
-      --text-3:        #aaaacc;
-      --user-bg:       #eeeef8;
-      --bot-bg:        #ffffff;
-      --header-blur:   rgba(248,248,252,0.88);
-      --overlay-bg:    #f8f8fc;
-      --shadow:        0 8px 32px rgba(0,0,0,0.1);
-      --shadow-sm:     0 2px 8px rgba(0,0,0,0.06);
-    }
-
-    /* ═══════════════════════════════════════════════════════════
-       RESET & BASE
-    ═══════════════════════════════════════════════════════════ */
-    *, *::before, *::after {
-      margin: 0; padding: 0;
-      box-sizing: border-box;
-      -webkit-tap-highlight-color: transparent;
-    }
-
-    html {
+    html, body {
       height: 100%;
       height: -webkit-fill-available;
-    }
-
-    body {
-      height: 100%;
-      height: -webkit-fill-available;
-      min-height: 100dvh;
-      font-family: 'DM Sans', -apple-system, BlinkMacSystemFont, sans-serif;
+      overflow: hidden;
+      font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
       background: var(--bg);
       color: var(--text);
       -webkit-font-smoothing: antialiased;
       -moz-osx-font-smoothing: grayscale;
-      overflow: hidden;
-      transition: background 0.3s ease, color 0.3s ease;
+      -webkit-tap-highlight-color: transparent;
+      touch-action: manipulation;
     }
 
-    /* ═══════════════════════════════════════════════════════════
-       LOADING OVERLAY
-    ═══════════════════════════════════════════════════════════ */
+    /* ── Loading Overlay ───────────────────────────────────── */
     .overlay {
       position: fixed;
       inset: 0;
@@ -117,131 +69,95 @@
       flex-direction: column;
       align-items: center;
       justify-content: center;
-      background: var(--overlay-bg);
-      padding: 24px;
+      background:
+        repeating-linear-gradient(
+          0deg,
+          transparent,
+          transparent 2px,
+          rgba(0,0,0,0.08) 2px,
+          rgba(0,0,0,0.08) 4px
+        ),
+        var(--bg);
       transition: opacity 0.5s ease;
     }
 
-    .overlay-inner {
-      display: flex;
-      flex-direction: column;
-      align-items: center;
-      width: 100%;
-      max-width: 420px;
+    .overlay.fade-out {
+      opacity: 0;
+      pointer-events: none;
     }
 
-    /* Logo on overlay */
-    .overlay-logo-wrap {
-      display: flex;
-      align-items: center;
-      gap: 12px;
-      margin-bottom: 6px;
-    }
-
-    .overlay-logo-icon {
-      width: 44px;
-      height: 44px;
-      background: var(--accent);
-      border-radius: 12px;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      font-size: 22px;
-      box-shadow: 0 0 24px var(--accent-glow);
-      flex-shrink: 0;
-    }
-
-    .overlay-logo-text {
-      font-family: 'Syne', sans-serif;
-      font-weight: 800;
-      font-size: 2rem;
-      color: var(--text);
-      letter-spacing: -0.5px;
-    }
-
-    .overlay-logo-text span {
+    .overlay-logo {
+      font-family: 'Rajdhani', sans-serif;
+      font-weight: 700;
+      font-size: 3rem;
       color: var(--accent);
+      letter-spacing: 2px;
+      text-shadow: 0 0 20px var(--accent-glow), 0 0 40px var(--accent-glow);
+      margin-bottom: 4px;
+      user-select: none;
     }
 
-    .overlay-tagline {
-      font-size: 0.88rem;
-      color: var(--text-2);
-      margin-bottom: 48px;
-      letter-spacing: 0.2px;
+    .overlay-subtitle {
+      font-size: 0.9rem;
+      color: var(--text-muted);
+      margin-bottom: 40px;
     }
 
-    /* Percent */
     .overlay-percent {
-      font-family: 'Syne', sans-serif;
-      font-weight: 800;
-      font-size: clamp(3.5rem, 12vw, 5.5rem);
+      font-family: 'Rajdhani', sans-serif;
+      font-weight: 700;
+      font-size: 5rem;
       color: var(--accent);
+      text-shadow: 0 0 30px var(--accent-glow);
       line-height: 1;
       margin-bottom: 20px;
-      filter: drop-shadow(0 0 20px var(--accent-glow));
-      font-variant-numeric: tabular-nums;
     }
 
-    /* GTA Progress Bar */
+    /* ── GTA Progress Bar ──────────────────────────────────── */
     .progress-bar-track {
-      width: 100%;
-      max-width: 360px;
-      height: 10px;
+      width: 380px;
+      max-width: 85vw;
+      height: 22px;
       background: var(--surface2);
-      border-radius: 999px;
+      border: 1px solid var(--border);
+      border-radius: 3px;
       overflow: hidden;
-      margin-bottom: 20px;
-      position: relative;
+      margin-bottom: 24px;
     }
 
     .progress-bar-fill {
       height: 100%;
       width: 0%;
       background: var(--accent);
-      border-radius: 999px;
-      transition: width 0.3s ease;
-      position: relative;
-      box-shadow: 0 0 12px var(--accent-glow), 0 0 24px var(--accent-glow);
-      animation: bar-glow 1.8s ease-in-out infinite alternate;
+      background-image: repeating-linear-gradient(
+        90deg,
+        transparent,
+        transparent 28px,
+        rgba(0,0,0,0.35) 28px,
+        rgba(0,0,0,0.35) 32px
+      );
+      box-shadow: 0 0 14px var(--accent-glow),
+                  0 0 35px var(--accent-glow);
+      transition: width 0.25s ease;
+      animation: glow-pulse 1.5s ease-in-out infinite alternate;
     }
 
-    .progress-bar-fill::after {
-      content: '';
-      position: absolute;
-      right: 0;
-      top: 0;
-      width: 40px;
-      height: 100%;
-      background: linear-gradient(90deg, transparent, rgba(255,255,255,0.6));
-      border-radius: 999px;
-      animation: shimmer 1.5s ease-in-out infinite;
-    }
-
-    @keyframes bar-glow {
+    @keyframes glow-pulse {
       from { box-shadow: 0 0 8px var(--accent-glow); }
-      to   { box-shadow: 0 0 20px var(--accent-glow), 0 0 40px var(--accent-glow); }
-    }
-
-    @keyframes shimmer {
-      0%   { opacity: 0; transform: translateX(-20px); }
-      50%  { opacity: 1; }
-      100% { opacity: 0; transform: translateX(10px); }
+      to   { box-shadow: 0 0 28px var(--accent-glow), 0 0 55px var(--accent-glow); }
     }
 
     .overlay-status {
-      font-size: 0.9rem;
+      font-size: 0.95rem;
       color: var(--text);
-      margin-bottom: 4px;
-      text-align: center;
+      margin-bottom: 6px;
     }
 
     .overlay-stats {
-      font-size: 0.8rem;
-      color: var(--text-2);
-      margin-bottom: 10px;
+      font-size: 0.82rem;
+      color: var(--text-muted);
+      margin-bottom: 12px;
       font-variant-numeric: tabular-nums;
-      text-align: center;
-      min-height: 1.2em;
     }
 
     .overlay-cache-note {
@@ -249,60 +165,53 @@
       color: var(--success);
       opacity: 0;
       transition: opacity 0.5s ease;
-      display: flex;
-      align-items: center;
-      gap: 5px;
     }
 
-    /* Overlay Error */
+    /* ── Overlay Error ─────────────────────────────────────── */
     .overlay-error {
       display: none;
       text-align: center;
-      margin-top: 24px;
-      padding: 18px 22px;
-      background: rgba(255,90,90,0.08);
-      border: 1px solid rgba(255,90,90,0.2);
-      border-radius: var(--radius-md);
-      width: 100%;
+      margin-top: 20px;
+      padding: 16px 24px;
+      background: rgba(255, 68, 68, 0.08);
+      border: 1px solid rgba(255, 68, 68, 0.25);
+      border-radius: 8px;
+      max-width: 400px;
     }
 
     .overlay-error-text {
       color: var(--error);
-      font-size: 0.86rem;
-      margin-bottom: 14px;
+      font-size: 0.88rem;
+      margin-bottom: 12px;
       word-break: break-word;
-      line-height: 1.5;
     }
 
     .overlay-error button {
-      padding: 9px 22px;
+      padding: 8px 20px;
       border: none;
-      border-radius: var(--radius-sm);
-      font-family: 'DM Sans', sans-serif;
+      border-radius: 4px;
+      font-family: 'Inter', sans-serif;
       font-weight: 500;
       font-size: 0.85rem;
       cursor: pointer;
-      margin: 4px;
-      transition: all 0.2s;
+      margin: 0 4px;
+      transition: background 0.2s;
     }
 
     #overlay-retry-btn {
       background: var(--accent);
       color: #000;
-      font-weight: 600;
     }
-    #overlay-retry-btn:hover { filter: brightness(1.1); }
+    #overlay-retry-btn:hover { background: #d4ff00; }
 
     #overlay-fallback-btn {
       background: var(--surface2);
-      color: var(--text-2);
-      border: 1px solid var(--border-strong);
+      color: var(--text);
+      border: 1px solid var(--border);
     }
-    #overlay-fallback-btn:hover { background: var(--surface3); }
+    #overlay-fallback-btn:hover { background: #222; }
 
-    /* ═══════════════════════════════════════════════════════════
-       WEBGPU ERROR SCREEN
-    ═══════════════════════════════════════════════════════════ */
+    /* ── WebGPU Error Screen ───────────────────────────────── */
     .webgpu-error {
       position: fixed;
       inset: 0;
@@ -312,166 +221,381 @@
       align-items: center;
       justify-content: center;
       background: var(--bg);
-      padding: 32px;
       text-align: center;
-    }
-
-    .webgpu-error-icon {
-      font-size: 3rem;
-      margin-bottom: 16px;
+      padding: 24px;
     }
 
     .webgpu-error h1 {
-      font-family: 'Syne', sans-serif;
-      font-weight: 700;
-      font-size: clamp(1.4rem, 5vw, 2rem);
-      color: var(--text);
+      font-family: 'Rajdhani', sans-serif;
+      font-size: 2.4rem;
+      color: var(--error);
       margin-bottom: 12px;
     }
 
     .webgpu-error p {
-      color: var(--text-2);
-      font-size: 0.96rem;
-      max-width: 420px;
-      line-height: 1.65;
-      margin-bottom: 10px;
+      color: var(--text-muted);
+      font-size: 1rem;
+      max-width: 440px;
+      line-height: 1.6;
+      margin-bottom: 20px;
     }
 
     .webgpu-error a {
       display: inline-block;
-      margin-top: 16px;
-      padding: 13px 32px;
+      padding: 12px 28px;
       background: var(--accent);
       color: #000;
-      font-weight: 700;
-      font-size: 0.96rem;
+      font-weight: 600;
+      font-size: 1rem;
       text-decoration: none;
-      border-radius: var(--radius-md);
-      transition: filter 0.2s;
+      border-radius: 6px;
+      transition: background 0.2s;
     }
-    .webgpu-error a:hover { filter: brightness(1.1); }
+    .webgpu-error a:hover { background: #d4ff00; }
 
-    /* ═══════════════════════════════════════════════════════════
-       MAIN CHAT LAYOUT
-    ═══════════════════════════════════════════════════════════ */
+    /* ── Chat Container ────────────────────────────────────── */
     .chat-container {
       display: flex;
       flex-direction: column;
-      height: 100dvh;
-      height: 100%;
-      max-width: 820px;
+      height: 100vh;
+      height: 100dvh;                    /* mobile: excludes address bar */
+      max-width: 800px;
       margin: 0 auto;
-      position: relative;
+      padding: 0;
     }
 
-    /* ═══════════════════════════════════════════════════════════
-       HEADER
-    ═══════════════════════════════════════════════════════════ */
+    /* ── Header ────────────────────────────────────────────── */
     .chat-header {
       display: flex;
       align-items: center;
       justify-content: space-between;
-      padding: 12px 18px;
-      background: var(--header-blur);
-      backdrop-filter: blur(20px);
-      -webkit-backdrop-filter: blur(20px);
+      padding: 12px 20px;
+      padding-top: calc(12px + var(--sat));     /* notch clearance on iPhone */
       border-bottom: 1px solid var(--border);
-      flex-shrink: 0;
-      position: sticky;
-      top: 0;
-      z-index: 10;
-    }
-
-    .header-left {
-      display: flex;
-      align-items: center;
-      gap: 10px;
-    }
-
-    .header-logo-icon {
-      width: 32px;
-      height: 32px;
-      background: var(--accent);
-      border-radius: 9px;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      font-size: 16px;
+      background: var(--surface);
       flex-shrink: 0;
     }
 
-    .header-logo-text {
-      font-family: 'Syne', sans-serif;
-      font-weight: 800;
-      font-size: 1.15rem;
+    .chat-header-logo {
+      font-family: 'Rajdhani', sans-serif;
+      font-weight: 700;
+      font-size: 1.5rem;
+      color: var(--accent);
+      letter-spacing: 1px;
+    }
+
+    .chat-header-badge {
+      font-size: 0.72rem;
+      color: var(--text-muted);
+      background: var(--surface2);
+      padding: 3px 10px;
+      border-radius: 20px;
+      border: 1px solid var(--border);
+    }
+
+    /* ── Messages Area ─────────────────────────────────────── */
+    .messages-area {
+      flex: 1;
+      overflow-y: auto;
+      padding: 20px;
+      display: flex;
+      flex-direction: column;
+      gap: 16px;
+      scroll-behavior: smooth;
+    }
+
+    .messages-area::-webkit-scrollbar { width: 6px; }
+    .messages-area::-webkit-scrollbar-track { background: transparent; }
+    .messages-area::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
+    .messages-area::-webkit-scrollbar-thumb:hover { background: #333; }
+
+    /* ── Welcome Card ──────────────────────────────────────── */
+    .welcome-card {
+      display: block;
+      align-self: center;
+      text-align: center;
+      padding: 40px 32px;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 16px;
+      margin: auto 0;
+      max-width: 420px;
+      width: 100%;
+    }
+
+    .welcome-icon {
+      font-size: 3rem;
+      margin-bottom: 8px;
+    }
+
+    .welcome-title {
+      font-family: 'Rajdhani', sans-serif;
+      font-weight: 700;
+      font-size: 1.8rem;
+      color: var(--accent);
+      margin-bottom: 16px;
+    }
+
+    .welcome-text {
+      font-size: 0.92rem;
+      color: var(--text-muted);
+      line-height: 1.7;
+      margin-bottom: 16px;
+    }
+
+    .welcome-brand {
+      display: inline-block;
+      padding: 4px 14px;
+      background: var(--surface2);
+      border: 1px solid var(--border);
+      border-radius: 20px;
+      font-size: 0.82rem;
+      color: var(--accent-dim);
+    }
+
+    /* ── Message Bubbles ───────────────────────────────────── */
+    .msg-bubble {
+      max-width: 85%;
+      padding: 12px 16px;
+      border-radius: 12px;
+      animation: fadeIn 0.2s ease;
+    }
+
+    @keyframes fadeIn {
+      from { opacity: 0; transform: translateY(6px); }
+      to   { opacity: 1; transform: translateY(0); }
+    }
+
+    .msg-user {
+      align-self: flex-end;
+      background: var(--user-bubble);
+      border-left: 3px solid var(--accent);
+    }
+
+    .msg-bot {
+      align-self: flex-start;
+      background: var(--bot-bubble);
+      border: 1px solid var(--border);
+    }
+
+    .msg-error {
+      align-self: flex-start;
+      background: rgba(255, 68, 68, 0.06);
+      border: 1px solid rgba(255, 68, 68, 0.25);
+      max-width: 85%;
+      padding: 12px 16px;
+      border-radius: 12px;
+    }
+
+    .msg-label {
+      font-size: 0.72rem;
+      font-weight: 500;
+      color: var(--text-muted);
+      margin-bottom: 4px;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+    }
+
+    .msg-content {
+      font-size: 0.92rem;
+      line-height: 1.65;
+      word-wrap: break-word;
+      overflow-wrap: break-word;
+    }
+
+    .msg-content pre {
+      background: var(--surface2);
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      padding: 10px 14px;
+      margin: 8px 0;
+      overflow-x: auto;
+      font-size: 0.84rem;
+    }
+
+    .msg-content code {
+      background: var(--surface2);
+      padding: 1px 5px;
+      border-radius: 3px;
+      font-size: 0.86em;
+    }
+
+    .msg-content pre code {
+      background: none;
+      padding: 0;
+    }
+
+    .msg-stats {
+      font-size: 0.72rem;
+      color: var(--text-muted);
+      margin-top: 8px;
+      font-variant-numeric: tabular-nums;
+    }
+
+    /* ── Blinking Cursor ───────────────────────────────────── */
+    .cursor {
+      color: var(--accent);
+      animation: blink 0.6s step-end infinite;
+      font-weight: 700;
+    }
+
+    @keyframes blink {
+      50% { opacity: 0; }
+    }
+
+    /* ── Error Bubble Buttons ──────────────────────────────── */
+    .retry-btn, .retry-lighter-btn {
+      display: inline-block;
+      margin-top: 8px;
+      margin-right: 6px;
+      padding: 5px 14px;
+      border: none;
+      border-radius: 4px;
+      font-family: 'Inter', sans-serif;
+      font-size: 0.8rem;
+      font-weight: 500;
+      cursor: pointer;
+      transition: background 0.2s;
+    }
+
+    .retry-btn {
+      background: var(--surface2);
       color: var(--text);
-      letter-spacing: -0.3px;
+      border: 1px solid var(--border);
+    }
+    .retry-btn:hover { background: #222; }
+
+    .retry-lighter-btn {
+      background: var(--accent);
+      color: #000;
+    }
+    .retry-lighter-btn:hover { background: #d4ff00; }
+
+    /* ── Input Area ────────────────────────────────────────── */
+    .input-area {
+      flex-shrink: 0;
+      border-top: 1px solid var(--border);
+      background: var(--surface);
+      padding: 12px 16px;
+      padding-bottom: calc(12px + var(--sab));   /* home bar clearance on iPhone */
+      padding-left:  calc(16px + var(--sal));
+      padding-right: calc(16px + var(--sar));
     }
 
-    .header-logo-text span { color: var(--accent); }
+    .device-info {
+      font-size: 0.72rem;
+      color: var(--text-muted);
+      margin-bottom: 10px;
+      padding: 0 4px;
+      font-variant-numeric: tabular-nums;
+    }
 
-    .header-right {
+    .input-row {
       display: flex;
-      align-items: center;
+      align-items: flex-end;
       gap: 8px;
     }
 
-    .header-badge {
-      font-size: 0.7rem;
-      font-weight: 500;
-      color: var(--text-2);
-      background: var(--surface2);
-      padding: 3px 10px;
-      border-radius: 999px;
-      border: 1px solid var(--border);
-      white-space: nowrap;
-    }
-
-    /* Theme Toggle */
-    .theme-btn {
-      width: 36px;
-      height: 36px;
-      border-radius: 50%;
-      border: 1px solid var(--border-strong);
-      background: var(--surface2);
-      color: var(--text-2);
-      cursor: pointer;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      font-size: 16px;
-      transition: all 0.2s;
+    .model-select {
       flex-shrink: 0;
-    }
-    .theme-btn:hover {
-      background: var(--surface3);
+      background: var(--surface2);
       color: var(--text);
-      border-color: var(--accent);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 8px 10px;
+      font-family: 'Inter', sans-serif;
+      font-size: 0.78rem;
+      outline: none;
+      cursor: pointer;
+      max-width: 220px;
+      transition: border-color 0.2s;
     }
 
-    /* ═══════════════════════════════════════════════════════════
-       UPGRADE BANNER
-    ═══════════════════════════════════════════════════════════ */
+    .model-select:hover { border-color: var(--accent-dim); }
+    .model-select:focus { border-color: var(--accent); }
+
+    .chat-input {
+      flex: 1;
+      background: var(--surface2);
+      color: var(--text);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 10px 14px;
+      font-family: 'Inter', sans-serif;
+      font-size: 16px;                   /* CRITICAL: prevents iOS auto-zoom on focus */
+      line-height: 1.4;
+      resize: none;
+      outline: none;
+      min-height: 44px;                  /* iOS touch target minimum */
+      max-height: 120px;
+      transition: border-color 0.2s;
+      -webkit-appearance: none;          /* remove iOS default styling */
+    }
+
+    .chat-input::placeholder { color: var(--text-muted); }
+    .chat-input:hover { border-color: var(--accent-dim); }
+    .chat-input:focus { border-color: var(--accent); }
+
+    .send-btn {
+      flex-shrink: 0;
+      background: var(--accent);
+      color: #000;
+      border: none;
+      border-radius: 8px;
+      padding: 10px 20px;
+      font-family: 'Inter', sans-serif;
+      font-weight: 600;
+      font-size: 0.9rem;
+      cursor: pointer;
+      transition: background 0.2s, opacity 0.2s;
+      white-space: nowrap;
+      min-height: 44px;                  /* iOS touch target */
+      min-width: 44px;
+      -webkit-tap-highlight-color: transparent;
+    }
+
+    .send-btn:hover:not(:disabled) { background: #d4ff00; }
+    .send-btn:disabled {
+      opacity: 0.5;
+      cursor: not-allowed;
+    }
+
+    .dot-pulse {
+      display: inline-block;
+      animation: dotPulse 1s ease-in-out infinite;
+    }
+
+    @keyframes dotPulse {
+      0%, 100% { opacity: 0.3; }
+      50% { opacity: 1; }
+    }
+
+    /* ── Pulsing loading animation for send button ─────────── */
+    .send-btn:disabled .send-btn-text {
+      animation: pulseOpacity 1.5s ease-in-out infinite;
+    }
+
+    @keyframes pulseOpacity {
+      0%, 100% { opacity: 0.5; }
+      50% { opacity: 1; }
+    }
+
+    /* ── Upgrade Banner ────────────────────────────────────── */
     .upgrade-banner {
       display: none;
       align-items: center;
       justify-content: center;
-      gap: 10px;
-      padding: 9px 16px;
-      background: linear-gradient(90deg, rgba(184,255,0,0.05), rgba(184,255,0,0.1), rgba(184,255,0,0.05));
-      border-bottom: 1px solid rgba(184,255,0,0.2);
+      gap: 12px;
+      padding: 10px 16px;
+      background: var(--surface);
+      border-top: 1px solid var(--accent);
+      border-bottom: 1px solid var(--border);
       flex-shrink: 0;
-      flex-wrap: wrap;
-      animation: slideDown 0.3s ease;
-    }
-
-    @keyframes slideDown {
-      from { transform: translateY(-100%); opacity: 0; }
-      to   { transform: translateY(0); opacity: 1; }
+      animation: fadeIn 0.3s ease;
     }
 
     .upgrade-banner-text {
-      font-size: 0.82rem;
+      font-size: 0.84rem;
       color: var(--accent);
       font-weight: 500;
     }
@@ -479,652 +603,190 @@
     .upgrade-btn {
       padding: 5px 14px;
       border: none;
-      border-radius: var(--radius-sm);
-      font-family: 'DM Sans', sans-serif;
-      font-size: 0.78rem;
-      font-weight: 600;
-      cursor: pointer;
-      transition: all 0.2s;
-    }
-
-    .upgrade-btn-yes { background: var(--accent); color: #000; }
-    .upgrade-btn-yes:hover { filter: brightness(1.1); }
-    .upgrade-btn-no { background: var(--surface3); color: var(--text-2); }
-    .upgrade-btn-no:hover { background: var(--surface2); }
-
-    /* ═══════════════════════════════════════════════════════════
-       MESSAGES AREA
-    ═══════════════════════════════════════════════════════════ */
-    .messages-area {
-      flex: 1;
-      overflow-y: auto;
-      padding: 24px 18px;
-      display: flex;
-      flex-direction: column;
-      gap: 6px;
-      overscroll-behavior: contain;
-      -webkit-overflow-scrolling: touch;
-    }
-
-    .messages-area::-webkit-scrollbar { width: 4px; }
-    .messages-area::-webkit-scrollbar-track { background: transparent; }
-    .messages-area::-webkit-scrollbar-thumb {
-      background: var(--border-strong);
-      border-radius: 999px;
-    }
-
-    /* ═══════════════════════════════════════════════════════════
-       WELCOME CARD
-    ═══════════════════════════════════════════════════════════ */
-    .welcome-card {
-      display: flex;
-      flex-direction: column;
-      align-items: center;
-      text-align: center;
-      padding: 48px 28px 40px;
-      margin: auto;
-      max-width: 440px;
-      width: 100%;
-      animation: fadeUp 0.5s ease;
-    }
-
-    @keyframes fadeUp {
-      from { opacity: 0; transform: translateY(16px); }
-      to   { opacity: 1; transform: translateY(0); }
-    }
-
-    .welcome-glow {
-      width: 80px;
-      height: 80px;
-      background: linear-gradient(135deg, var(--accent), #00d4aa);
-      border-radius: 24px;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      font-size: 38px;
-      margin-bottom: 20px;
-      box-shadow: 0 0 40px var(--accent-glow), 0 8px 24px rgba(0,0,0,0.2);
-    }
-
-    .welcome-title {
-      font-family: 'Syne', sans-serif;
-      font-weight: 800;
-      font-size: clamp(1.6rem, 5vw, 2rem);
-      color: var(--text);
-      margin-bottom: 10px;
-      letter-spacing: -0.5px;
-    }
-
-    .welcome-sub {
-      font-size: 0.92rem;
-      color: var(--text-2);
-      line-height: 1.7;
-      margin-bottom: 24px;
-      max-width: 320px;
-    }
-
-    .welcome-chips {
-      display: flex;
-      flex-wrap: wrap;
-      gap: 8px;
-      justify-content: center;
-      margin-bottom: 20px;
-    }
-
-    .welcome-chip {
-      display: flex;
-      align-items: center;
-      gap: 5px;
-      padding: 5px 12px;
-      background: var(--surface2);
-      border: 1px solid var(--border);
-      border-radius: 999px;
-      font-size: 0.78rem;
-      color: var(--text-2);
-    }
-
-    .welcome-brand {
-      font-size: 0.78rem;
-      color: var(--text-3);
-    }
-
-    /* ═══════════════════════════════════════════════════════════
-       MESSAGE BUBBLES
-    ═══════════════════════════════════════════════════════════ */
-    .msg-group {
-      display: flex;
-      flex-direction: column;
-      gap: 2px;
-      animation: fadeIn 0.2s ease;
-    }
-
-    @keyframes fadeIn {
-      from { opacity: 0; transform: translateY(4px); }
-      to   { opacity: 1; transform: translateY(0); }
-    }
-
-    .msg-bubble {
-      max-width: min(85%, 620px);
-      padding: 12px 16px;
-      border-radius: var(--radius-md);
-      line-height: 1.65;
-    }
-
-    .msg-user {
-      align-self: flex-end;
-      background: var(--user-bg);
-      border: 1px solid var(--border-strong);
-      border-bottom-right-radius: 4px;
-      margin-top: 12px;
-    }
-
-    .msg-bot {
-      align-self: flex-start;
-      background: var(--bot-bg);
-      border: 1px solid var(--border);
-      border-bottom-left-radius: 4px;
-    }
-
-    .msg-error {
-      align-self: flex-start;
-      background: rgba(255,90,90,0.06);
-      border: 1px solid rgba(255,90,90,0.2);
-      border-radius: var(--radius-md);
-      padding: 12px 16px;
-      max-width: min(85%, 620px);
-    }
-
-    .msg-label {
-      font-size: 0.68rem;
-      font-weight: 600;
-      color: var(--text-3);
-      margin-bottom: 5px;
-      text-transform: uppercase;
-      letter-spacing: 0.6px;
-      display: flex;
-      align-items: center;
-      gap: 5px;
-    }
-
-    .msg-label-dot {
-      width: 6px;
-      height: 6px;
-      border-radius: 50%;
-      background: var(--accent);
-      flex-shrink: 0;
-    }
-
-    .msg-content {
-      font-size: 0.95rem;
-      line-height: 1.7;
-      word-wrap: break-word;
-      overflow-wrap: break-word;
-      color: var(--text);
-    }
-
-    .msg-content pre {
-      background: var(--surface2);
-      border: 1px solid var(--border);
-      border-radius: var(--radius-sm);
-      padding: 12px 14px;
-      margin: 10px 0;
-      overflow-x: auto;
-      font-size: 0.84rem;
-      font-family: 'SF Mono', 'Fira Code', monospace;
-    }
-
-    .msg-content code {
-      background: var(--surface2);
-      padding: 2px 6px;
       border-radius: 4px;
-      font-size: 0.86em;
-      font-family: 'SF Mono', 'Fira Code', monospace;
-    }
-
-    .msg-content pre code { background: none; padding: 0; }
-
-    .msg-stats {
-      font-size: 0.7rem;
-      color: var(--text-3);
-      margin-top: 8px;
-      font-variant-numeric: tabular-nums;
-      display: flex;
-      align-items: center;
-      gap: 6px;
-    }
-
-    .msg-stats::before {
-      content: '·';
-      font-size: 1rem;
-      line-height: 1;
-    }
-
-    /* Cursor */
-    .cursor {
-      display: inline-block;
-      width: 2px;
-      height: 1em;
-      background: var(--accent);
-      margin-left: 2px;
-      vertical-align: text-bottom;
-      border-radius: 1px;
-      animation: cursor-blink 0.7s ease-in-out infinite;
-    }
-
-    @keyframes cursor-blink {
-      0%, 100% { opacity: 1; }
-      50% { opacity: 0; }
-    }
-
-    /* Error bubble buttons */
-    .retry-btn, .retry-lighter-btn {
-      display: inline-flex;
-      align-items: center;
-      gap: 5px;
-      margin-top: 10px;
-      margin-right: 6px;
-      padding: 6px 14px;
-      border: none;
-      border-radius: var(--radius-sm);
-      font-family: 'DM Sans', sans-serif;
+      font-family: 'Inter', sans-serif;
       font-size: 0.8rem;
-      font-weight: 500;
+      font-weight: 600;
       cursor: pointer;
-      transition: all 0.2s;
+      transition: background 0.2s;
     }
 
-    .retry-btn { background: var(--surface2); color: var(--text); border: 1px solid var(--border-strong); }
-    .retry-btn:hover { background: var(--surface3); }
-    .retry-lighter-btn { background: var(--accent); color: #000; font-weight: 600; }
-    .retry-lighter-btn:hover { filter: brightness(1.1); }
+    .upgrade-btn-yes {
+      background: var(--accent);
+      color: #000;
+    }
+    .upgrade-btn-yes:hover { background: #d4ff00; }
 
-    /* ═══════════════════════════════════════════════════════════
-       SLEEP BANNER
-    ═══════════════════════════════════════════════════════════ */
+    .upgrade-btn-no {
+      background: var(--surface2);
+      color: var(--text-muted);
+      border: 1px solid var(--border);
+    }
+    .upgrade-btn-no:hover { background: #222; }
+
+    /* ── Sleep Banner ──────────────────────────────────────── */
     .sleep-banner {
       display: none;
       text-align: center;
-      padding: 32px 16px;
-      color: var(--text-2);
+      padding: 24px 16px;
+      color: var(--text-muted);
       font-size: 0.9rem;
       animation: fadeIn 0.3s ease;
     }
 
-    .sleep-banner-icon { font-size: 2.2rem; margin-bottom: 8px; }
-
-    /* ═══════════════════════════════════════════════════════════
-       INPUT AREA
-    ═══════════════════════════════════════════════════════════ */
-    .input-area {
-      flex-shrink: 0;
-      padding: 12px 16px max(12px, env(safe-area-inset-bottom));
-      background: var(--header-blur);
-      backdrop-filter: blur(20px);
-      -webkit-backdrop-filter: blur(20px);
-      border-top: 1px solid var(--border);
+    .sleep-banner-icon {
+      font-size: 2rem;
+      margin-bottom: 6px;
     }
 
-    .device-info {
-      font-size: 0.68rem;
-      color: var(--text-3);
-      margin-bottom: 8px;
-      padding: 0 2px;
-      font-variant-numeric: tabular-nums;
-      white-space: nowrap;
-      overflow: hidden;
-      text-overflow: ellipsis;
-    }
-
-    .input-box {
-      display: flex;
-      flex-direction: column;
-      background: var(--surface2);
-      border: 1.5px solid var(--border-strong);
-      border-radius: var(--radius-lg);
-      transition: border-color 0.2s, box-shadow 0.2s;
-      overflow: hidden;
-    }
-
-    .input-box:focus-within {
-      border-color: var(--accent);
-      box-shadow: 0 0 0 3px var(--accent-glow);
-    }
-
-    .input-top {
-      display: flex;
-      align-items: flex-end;
-      padding: 10px 14px 6px;
-      gap: 8px;
-    }
-
-    .chat-input {
-      flex: 1;
-      background: transparent;
-      color: var(--text);
-      border: none;
-      outline: none;
-      font-family: 'DM Sans', sans-serif;
-      font-size: 0.95rem;
-      line-height: 1.5;
-      resize: none;
-      min-height: 28px;
-      max-height: 120px;
-      padding: 2px 0;
-    }
-
-    .chat-input::placeholder { color: var(--text-3); }
-
-    .send-btn {
-      flex-shrink: 0;
-      width: 36px;
-      height: 36px;
-      border-radius: 50%;
-      border: none;
-      background: var(--accent);
-      color: #000;
-      cursor: pointer;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      transition: all 0.2s;
-      font-size: 16px;
-      margin-bottom: 2px;
-    }
-
-    .send-btn:hover:not(:disabled) {
-      filter: brightness(1.1);
-      transform: scale(1.05);
-    }
-
-    .send-btn:disabled {
-      opacity: 0.4;
-      cursor: not-allowed;
-      transform: none;
-    }
-
-    .input-bottom {
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-      padding: 4px 14px 10px;
-      gap: 8px;
-    }
-
-    .model-select {
-      background: transparent;
-      color: var(--text-2);
-      border: none;
-      outline: none;
-      font-family: 'DM Sans', sans-serif;
-      font-size: 0.76rem;
-      cursor: pointer;
-      max-width: 200px;
-      padding: 2px 0;
-    }
-
-    .model-select option {
-      background: var(--surface);
-      color: var(--text);
-    }
-
-    .input-hint {
-      font-size: 0.68rem;
-      color: var(--text-3);
-      flex-shrink: 0;
-    }
-
-    /* Loading indicator inside send btn */
-    .send-spinner {
-      width: 16px;
-      height: 16px;
-      border: 2px solid rgba(0,0,0,0.3);
-      border-top-color: #000;
-      border-radius: 50%;
-      animation: spin 0.7s linear infinite;
-    }
-
-    @keyframes spin {
-      to { transform: rotate(360deg); }
-    }
-
-    /* Hidden send-btn-text for JS compat */
-    #send-btn-text { display: none; }
-
-    /* ═══════════════════════════════════════════════════════════
-       RESPONSIVE
-    ═══════════════════════════════════════════════════════════ */
+    /* ── Responsive ────────────────────────────────────────── */
+    /* ── Mobile (phones) ──────────────────────────────────────── */
     @media (max-width: 600px) {
-      .messages-area { padding: 16px 12px; }
-      .chat-header { padding: 10px 14px; }
-      .header-badge { display: none; }
-      .msg-bubble { max-width: 92%; }
-      .welcome-card { padding: 32px 16px; }
-      .input-area { padding: 10px 12px max(10px, env(safe-area-inset-bottom)); }
-      .model-select { max-width: 150px; }
+      .overlay-logo    { font-size: 2.2rem; }
+      .overlay-percent { font-size: 3.5rem; }
+      .progress-bar-track { width: 90vw; }
+      .chat-header     { padding: 10px 14px; padding-top: calc(10px + var(--sat)); }
+      .messages-area   { padding: 12px; gap: 12px; }
+      .welcome-card    { padding: 24px 16px; margin: 16px; }
+      .welcome-title   { font-size: 1.5rem; }
+      .model-select    { max-width: 130px; font-size: 0.72rem; }
+      .input-row       { gap: 6px; }
+      .send-btn        { padding: 10px 14px; }
+      .msg-bubble      { max-width: 92%; }
+      .device-info     { font-size: 0.68rem; }
+      /* Bigger tap area for buttons */
+      .upgrade-btn, .retry-btn, .retry-lighter-btn { min-height: 36px; }
     }
 
-    @media (max-width: 380px) {
-      .input-bottom { flex-direction: column; align-items: flex-start; gap: 4px; }
-      .model-select { max-width: 100%; }
+    /* Very small phones */
+    @media (max-width: 400px) {
+      .model-select  { display: none; }
+      .chat-header-badge { display: none; }
     }
 
-    /* Notch/Dynamic Island safe area */
-    @supports (padding-top: env(safe-area-inset-top)) {
-      .chat-header {
-        padding-top: max(12px, env(safe-area-inset-top));
-      }
+    /* Landscape on phones — compact header */
+    @media (max-height: 500px) and (orientation: landscape) {
+      .chat-header { padding-top: 6px; padding-bottom: 6px; }
+      .messages-area { padding: 8px 12px; gap: 8px; }
+      .input-area { padding-top: 6px; padding-bottom: calc(6px + var(--sab)); }
+      .welcome-card { padding: 16px; }
     }
-
-    /* ═══════════════════════════════════════════════════════════
-       TRANSITIONS
-    ═══════════════════════════════════════════════════════════ */
-    .surface-transition {
-      transition: background 0.3s ease, border-color 0.3s ease, color 0.3s ease;
-    }
-
-    /* Dot pulse for thinking */
-    .dot-pulse {
-      display: inline-flex;
-      gap: 3px;
-      align-items: center;
-    }
-
-    .dot-pulse span {
-      width: 5px;
-      height: 5px;
-      background: currentColor;
-      border-radius: 50%;
-      animation: dotBounce 1.2s ease-in-out infinite;
-    }
-
-    .dot-pulse span:nth-child(2) { animation-delay: 0.2s; }
-    .dot-pulse span:nth-child(3) { animation-delay: 0.4s; }
-
-    @keyframes dotBounce {
-      0%, 80%, 100% { transform: scale(0.6); opacity: 0.4; }
-      40%            { transform: scale(1);   opacity: 1; }
-    }
+  
+    /* ── is-mobile class (added by JS when phone detected) ─── */
+    .is-mobile .msg-bubble       { font-size: 0.88rem; }
+    .is-mobile .chat-input       { font-size: 16px !important; } /* no zoom */
+    .is-mobile .device-info      { display: none; }              /* save space */
+    .is-mobile .overlay-stats    { font-size: 0.78rem; }
   </style>
 </head>
 <body>
 
-  <!-- ══════════════════════════════════════════════════
-       WEBGPU ERROR SCREEN
-  ══════════════════════════════════════════════════ -->
+  <!-- ════════════════════════════════════════════════════════
+       WebGPU Error Screen (hidden by default)
+       ════════════════════════════════════════════════════════ -->
   <div class="webgpu-error" id="webgpu-error">
-    <div class="webgpu-error-icon">⚡</div>
-    <h1>WebGPU Required</h1>
-    <p>NeonLlama uses WebGPU to run AI models directly on your device — no server needed.</p>
-    <p>Please open this in <strong>Google Chrome 113+</strong> or <strong>Microsoft Edge 113+</strong>.</p>
-    <a href="https://www.google.com/chrome/" rel="noopener noreferrer">Download Chrome Free →</a>
+    <h1>WebGPU Not Available</h1>
+    <p>
+      NeonLlama needs WebGPU to run AI models directly in your browser.
+      Your current browser does not support WebGPU.
+    </p>
+    <p>
+      Please use <strong>Google Chrome 113+</strong> or <strong>Microsoft Edge 113+</strong>
+      on a device with a compatible GPU.
+    </p>
+    <a href="https://www.google.com/chrome/" rel="noopener noreferrer">Download Chrome</a>
   </div>
 
-  <!-- ══════════════════════════════════════════════════
-       LOADING OVERLAY
-  ══════════════════════════════════════════════════ -->
+  <!-- Mobile-specific error screen -->
+  <div class="webgpu-error" id="mobile-error" style="display:none; flex-direction:column; padding:32px 24px; max-width:440px; margin:0 auto; text-align:center;">
+    <div style="font-size:3rem; margin-bottom:16px;">📱</div>
+    <h1 id="me-title" style="font-size:1.6rem; margin-bottom:16px;"></h1>
+    <p id="me-body" style="font-size:0.95rem; color:#888; line-height:1.7; margin-bottom:28px;"></p>
+    <div id="me-action"></div>
+  </div>
+
+  <!-- ════════════════════════════════════════════════════════
+       Loading Overlay (visible on start)
+       ════════════════════════════════════════════════════════ -->
   <div class="overlay" id="loading-overlay">
-    <div class="overlay-inner">
+    <div class="overlay-logo" id="overlay-title">⚡ LlamaChat</div>
+    <div class="overlay-subtitle" id="overlay-subtitle">Powered by Meta &amp; Microsoft &middot; In-Browser</div>
 
-      <div class="overlay-logo-wrap">
-        <div class="overlay-logo-icon">⚡</div>
-        <div class="overlay-logo-text">Neon<span>Llama</span></div>
-      </div>
-      <div class="overlay-tagline" id="overlay-subtitle">Powered by Meta &amp; Microsoft · Runs in your browser</div>
+    <div class="overlay-percent" id="overlay-percent">0%</div>
 
-      <div class="overlay-percent" id="overlay-percent">0%</div>
+    <div class="progress-bar-track">
+      <div class="progress-bar-fill" id="progress-bar-fill"></div>
+    </div>
 
-      <div class="progress-bar-track">
-        <div class="progress-bar-fill" id="progress-bar-fill"></div>
-      </div>
+    <div class="overlay-status" id="overlay-status">Detecting hardware...</div>
+    <div class="overlay-stats" id="overlay-stats"></div>
+    <div class="overlay-cache-note" id="overlay-cache-note"></div>
 
-      <div class="overlay-status" id="overlay-status">Detecting hardware...</div>
-      <div class="overlay-stats" id="overlay-stats"></div>
-      <div class="overlay-cache-note" id="overlay-cache-note">
-        <svg width="12" height="12" viewBox="0 0 12 12" fill="none">
-          <path d="M10 3L5 9L2 6" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
-        </svg>
-        Cached locally — instant next visit
-      </div>
-
-      <!-- hidden, kept for JS compat -->
-      <span id="overlay-title" style="display:none"></span>
-
-      <div class="overlay-error" id="overlay-error">
-        <div class="overlay-error-text" id="overlay-error-text"></div>
-        <button id="overlay-retry-btn">↺ Retry</button>
-        <button id="overlay-fallback-btn">Use Lighter Model</button>
-      </div>
+    <div class="overlay-error" id="overlay-error">
+      <div class="overlay-error-text" id="overlay-error-text"></div>
+      <button id="overlay-retry-btn">Retry</button>
+      <button id="overlay-fallback-btn">Use Lighter Model</button>
     </div>
   </div>
 
-  <!-- ══════════════════════════════════════════════════
-       CHAT APP
-  ══════════════════════════════════════════════════ -->
+  <!-- ════════════════════════════════════════════════════════
+       Chat Application
+       ════════════════════════════════════════════════════════ -->
   <div class="chat-container" id="chat-container">
 
     <!-- Header -->
     <div class="chat-header">
-      <div class="header-left">
-        <div class="header-logo-icon">⚡</div>
-        <div class="header-logo-text">Neon<span>Llama</span></div>
-      </div>
-      <div class="header-right">
-        <div class="header-badge" id="header-badge">100% Private · On-Device</div>
-        <button class="theme-btn" id="theme-btn" title="Toggle theme" aria-label="Toggle light/dark mode">
-          🌙
-        </button>
-      </div>
+      <div class="chat-header-logo">NeonLlama</div>
+      <div class="chat-header-badge">100% Private &middot; On-Device AI</div>
     </div>
 
-    <!-- Upgrade Banner -->
+    <!-- Upgrade Banner (shown when Phase 2 model is cached) -->
     <div class="upgrade-banner" id="upgrade-banner">
       <span class="upgrade-banner-text" id="upgrade-banner-text"></span>
-      <button class="upgrade-btn upgrade-btn-yes" id="upgrade-yes-btn">Upgrade</button>
-      <button class="upgrade-btn upgrade-btn-no" id="upgrade-no-btn">Later</button>
+      <button class="upgrade-btn upgrade-btn-yes" id="upgrade-yes-btn">Upgrade Now</button>
+      <button class="upgrade-btn upgrade-btn-no" id="upgrade-no-btn">Stay on Current</button>
     </div>
 
     <!-- Messages -->
     <div class="messages-area" id="messages-area">
-
+      <!-- Sleep Banner (shown when idle auto-unloaded) -->
       <div class="sleep-banner" id="sleep-banner">
-        <div class="sleep-banner-icon">💤</div>
-        Model sleeping to save battery — type to wake
+        <div class="sleep-banner-icon">&#128164;</div>
+        Model sleeping to save battery &mdash; type to wake
       </div>
 
       <div class="welcome-card" id="welcome-card">
-        <div class="welcome-glow">⚡</div>
+        <div class="welcome-icon">&#129433;</div>
         <div class="welcome-title">NeonLlama</div>
-        <div class="welcome-sub">
-          Your private AI assistant.<br>
-          Runs 100% on your device — no internet needed after first load.
+        <div class="welcome-text">
+          Your private AI assistant<br>
+          Runs 100% on your device<br>
+          No internet needed after model loads
         </div>
-        <div class="welcome-chips">
-          <div class="welcome-chip">🔒 Zero data sent</div>
-          <div class="welcome-chip">📶 Works offline</div>
-          <div class="welcome-chip">⚡ GPU accelerated</div>
-        </div>
-        <div class="welcome-brand" id="welcome-brand">Powered by Meta · Microsoft</div>
+        <div class="welcome-brand" id="welcome-brand">Powered by Meta</div>
       </div>
-
     </div>
 
     <!-- Input -->
     <div class="input-area" id="input-area">
       <div class="device-info" id="device-info">Detecting device...</div>
-      <div class="input-box">
-        <div class="input-top">
-          <textarea
-            class="chat-input"
-            id="chat-input"
-            placeholder="Loading model..."
-            rows="1"
-            disabled
-          ></textarea>
-          <button class="send-btn" id="send-btn" disabled aria-label="Send message">
-            <span id="send-btn-text"></span>
-            <svg id="send-icon" width="16" height="16" viewBox="0 0 16 16" fill="none">
-              <path d="M2 8h12M8 3l7 5-7 5" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
-            </svg>
-          </button>
-        </div>
-        <div class="input-bottom">
-          <select class="model-select" id="model-select" title="Select AI model"></select>
-          <span class="input-hint">↵ Send · ⇧↵ New line</span>
-        </div>
+      <div class="input-row">
+        <select class="model-select" id="model-select" title="Select AI Model"></select>
+        <textarea
+          class="chat-input"
+          id="chat-input"
+          placeholder="Loading model..."
+          rows="1"
+          disabled
+        ></textarea>
+        <button class="send-btn" id="send-btn" disabled>
+          <span id="send-btn-text">Select Model &uarr;</span>
+        </button>
       </div>
     </div>
-
   </div>
 
-  <script type="module" src="./app.js"></script>
-  <script>
-    // ── Theme Toggle ────────────────────────────────────────────
-    const root = document.documentElement;
-    const btn  = document.getElementById('theme-btn');
-    const ICONS = { dark: '🌙', light: '☀️' };
-
-    // Init from saved preference or system
-    const saved = localStorage.getItem('nl-theme');
-    const sysDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
-    const theme = saved || (sysDark ? 'dark' : 'light');
-    root.setAttribute('data-theme', theme);
-    btn.textContent = ICONS[theme === 'dark' ? 'light' : 'dark'];
-
-    btn.addEventListener('click', () => {
-      const current = root.getAttribute('data-theme');
-      const next = current === 'dark' ? 'light' : 'dark';
-      root.setAttribute('data-theme', next);
-      btn.textContent = ICONS[next === 'dark' ? 'light' : 'dark'];
-      localStorage.setItem('nl-theme', next);
-      // Update theme-color meta
-      document.querySelector('meta[name="theme-color"][media*="dark"]')
-        .setAttribute('content', next === 'dark' ? '#0a0a0f' : '#f8f8fc');
-    });
-
-    // ── Send button visual state ────────────────────────────────
-    // Override the send btn to use icon instead of text
-    const sendBtn = document.getElementById('send-btn');
-    const sendIcon = document.getElementById('send-icon');
-
-    // Watch for disabled state to show spinner
-    const obs = new MutationObserver(() => {
-      const isDisabled = sendBtn.disabled;
-      const btnText = document.getElementById('send-btn-text').textContent;
-      const isThinking = btnText.includes('Thinking') || btnText.includes('Loading');
-      if (isDisabled && isThinking) {
-        sendIcon.style.display = 'none';
-        if (!sendBtn.querySelector('.send-spinner')) {
-          const sp = document.createElement('div');
-          sp.className = 'send-spinner';
-          sendBtn.appendChild(sp);
-        }
-      } else {
-        sendIcon.style.display = 'block';
-        const sp = sendBtn.querySelector('.send-spinner');
-        if (sp) sp.remove();
-      }
-    });
-    obs.observe(sendBtn, { attributes: true, childList: true, subtree: true });
-  </script>
+  <!-- App Script -->
+  <script src="./app.js" type="module"></script>
 </body>
 </html>
