@@ -1,112 +1,104 @@
-/* ============================================================
-   NeonLlama — Download Accelerator Service Worker
-   
-   HOW IT WORKS:
-   WebLLM fetches model shards one by one from HuggingFace.
-   This SW intercepts those fetch requests and uses HTTP Range
-   requests to download each shard in 4 parallel chunks,
-   then reassembles them — like a download manager (IDM).
-   
-   Result: 3-4x faster download on most connections.
-   ============================================================ */
+/* ═══════════════════════════════════════════════════════════
+   NeonLlama Service Worker
+   • PWA offline caching for app shell
+   • Download accelerator for HuggingFace model shards
+═══════════════════════════════════════════════════════════ */
 
-const SW_VERSION = "v2";
-const PARALLEL_CHUNKS = 4; // download each shard in 4 parallel pieces
-const MIN_SIZE_FOR_PARALLEL = 10 * 1024 * 1024; // only parallelize files > 10MB
+const CACHE_NAME  = 'neonllama-v2';
+const APP_SHELL   = [
+  './',
+  './index.html',
+  './app.js',
+  './worker.js',
+  './manifest.json',
+];
 
-self.addEventListener("install", (e) => {
+/* ── Install: cache app shell ─────────────────────────── */
+self.addEventListener('install', (e) => {
   self.skipWaiting();
+  e.waitUntil(
+    caches.open(CACHE_NAME).then(c => c.addAll(APP_SHELL)).catch(() => {})
+  );
 });
 
-self.addEventListener("activate", (e) => {
-  e.waitUntil(self.clients.claim());
+/* ── Activate: clean old caches ──────────────────────── */
+self.addEventListener('activate', (e) => {
+  e.waitUntil(
+    caches.keys().then(keys =>
+      Promise.all(keys.filter(k => k !== CACHE_NAME).map(k => caches.delete(k)))
+    ).then(() => self.clients.claim())
+  );
 });
 
-/* Intercept all fetch requests */
-self.addEventListener("fetch", (e) => {
+/* ── Fetch: serve shell from cache, accelerate HF downloads ── */
+self.addEventListener('fetch', (e) => {
   const url = e.request.url;
 
-  /* Only accelerate HuggingFace model shard downloads */
-  const isHFShard = (
-    url.includes("huggingface.co") ||
-    url.includes("hf.co")
-  ) && (
-    url.includes(".bin") ||
-    url.includes(".safetensors") ||
-    url.includes("params_shard") ||
-    url.includes("ndarray-cache")
-  );
-
-  if (isHFShard && e.request.method === "GET") {
-    e.respondWith(parallelFetch(e.request));
+  /* App shell: cache-first */
+  if (APP_SHELL.some(p => url.endsWith(p.replace('./', '/'))) || url === self.location.origin + '/') {
+    e.respondWith(
+      caches.match(e.request).then(r => r || fetch(e.request))
+    );
     return;
   }
 
-  /* All other requests — pass through normally */
-  e.respondWith(fetch(e.request));
+  /* HuggingFace model shards: parallel chunk accelerator */
+  if (url.includes('huggingface.co') && url.includes('.bin') ||
+      url.includes('huggingface.co') && url.includes('.safetensors') ||
+      url.includes('huggingface.co') && (url.includes('-shard') || url.includes('.gguf'))) {
+    e.respondWith(acceleratedFetch(e.request));
+    return;
+  }
 });
 
-/* ── Parallel Chunk Downloader ─────────────────────────────── */
-async function parallelFetch(request) {
+/* ── Parallel chunk downloader (4x speed) ────────────── */
+async function acceleratedFetch(request) {
   try {
-    /* Step 1: HEAD request to get file size */
-    const head = await fetch(request.url, {
-      method: "HEAD",
-      mode: "cors",
-      credentials: "omit",
-    });
+    /* 1. HEAD request to get file size */
+    const head = await fetch(request.url, { method: 'HEAD' });
+    const total = parseInt(head.headers.get('content-length') || '0');
+    const acceptRanges = head.headers.get('accept-ranges');
 
-    const contentLength = parseInt(head.headers.get("content-length") || "0");
-    const acceptsRanges = head.headers.get("accept-ranges") === "bytes";
-
-    /* If server doesn't support range requests or file is small → normal fetch */
-    if (!acceptsRanges || contentLength < MIN_SIZE_FOR_PARALLEL) {
+    /* If range requests not supported or file < 2 MB, fall back */
+    if (!acceptRanges || acceptRanges === 'none' || total < 2 * 1024 * 1024) {
       return fetch(request);
     }
 
-    /* Step 2: Split file into N parallel chunks */
-    const chunkSize = Math.ceil(contentLength / PARALLEL_CHUNKS);
-    const ranges = [];
-
-    for (let i = 0; i < PARALLEL_CHUNKS; i++) {
+    const CHUNKS = 4;
+    const chunkSize = Math.ceil(total / CHUNKS);
+    const ranges = Array.from({ length: CHUNKS }, (_, i) => {
       const start = i * chunkSize;
-      const end = Math.min(start + chunkSize - 1, contentLength - 1);
-      ranges.push({ start, end });
-    }
-
-    /* Step 3: Fetch all chunks simultaneously */
-    const chunkPromises = ranges.map(({ start, end }) =>
-      fetch(request.url, {
-        method: "GET",
-        headers: { "Range": `bytes=${start}-${end}` },
-        mode: "cors",
-        credentials: "omit",
-      }).then(r => r.arrayBuffer())
-    );
-
-    const chunks = await Promise.all(chunkPromises);
-
-    /* Step 4: Reassemble chunks in order */
-    const totalSize = chunks.reduce((acc, c) => acc + c.byteLength, 0);
-    const assembled = new Uint8Array(totalSize);
-    let offset = 0;
-    for (const chunk of chunks) {
-      assembled.set(new Uint8Array(chunk), offset);
-      offset += chunk.byteLength;
-    }
-
-    /* Step 5: Return as a proper Response */
-    return new Response(assembled.buffer, {
-      status: 200,
-      headers: {
-        "Content-Type": head.headers.get("content-type") || "application/octet-stream",
-        "Content-Length": String(totalSize),
-      },
+      const end   = Math.min(start + chunkSize - 1, total - 1);
+      return { start, end };
     });
 
-  } catch (err) {
-    /* Any failure → fall back to normal fetch silently */
-    console.warn("[SW] Parallel fetch failed, falling back:", err.message);
+    /* 2. Fetch all chunks in parallel */
+    const buffers = await Promise.all(
+      ranges.map(({ start, end }) =>
+        fetch(request.url, {
+          headers: { Range: `bytes=${start}-${end}` }
+        }).then(r => r.arrayBuffer())
+      )
+    );
+
+    /* 3. Reassemble */
+    const merged = new Uint8Array(total);
+    let offset = 0;
+    for (const buf of buffers) {
+      merged.set(new Uint8Array(buf), offset);
+      offset += buf.byteLength;
+    }
+
+    return new Response(merged.buffer, {
+      status: 200,
+      headers: {
+        'Content-Type':   head.headers.get('content-type') || 'application/octet-stream',
+        'Content-Length': String(total),
+      }
+    });
+
+  } catch {
+    /* Safe fallback: normal fetch */
     return fetch(request);
   }
 }

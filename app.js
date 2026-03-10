@@ -219,29 +219,52 @@ function handleLoadProgress(p) {
 
 /* -- Load Complete → Fade Overlay → Unlock Chat ------------- */
 function handleLoadComplete(modelId) {
-  state.isLoading  = false;
-  state.isSleeping = false;
-  state.loadedModel = MODELS.find((m) => m.id === modelId) || state.selectedModel;
+  try {
+    state.isLoading  = false;
+    state.isSleeping = false;
+    state.loadedModel = MODELS.find((m) => m.id === modelId) || state.selectedModel;
 
-  dom.overlayPercent.textContent  = "100%";
-  dom.progressBarFill.style.width = "100%";
-  dom.overlayStatus.textContent   = "Model ready!";
-  dom.overlayStats.textContent    = "";
+    dom.overlayPercent.textContent  = "100%";
+    dom.progressBarFill.style.width = "100%";
+    dom.overlayStatus.textContent   = "✓ Ready!";
+    dom.overlayStats.textContent    = "";
+  } catch(e) { console.error("[handleLoadComplete] state error", e); }
 
+  // Bulletproof reveal: show chat FIRST, then fade overlay on top
+  try {
+    // 1. Make chat container fully visible immediately via inline styles
+    //    (works regardless of any CSS class issues)
+    const chat = document.getElementById("chat-container");
+    if (chat) {
+      chat.style.display  = "flex";
+      chat.style.opacity  = "1";
+      chat.style.visibility = "visible";
+    }
+  } catch(e) { console.error("[handleLoadComplete] chat reveal error", e); }
+
+  // 2. Fade overlay out on top after short delay so user sees 100%
   setTimeout(() => {
-    dom.overlay.style.transition = "opacity 0.6s ease";
-    dom.overlay.style.opacity    = "0";
-    setTimeout(() => {
-      dom.overlay.style.display    = "none";
-      dom.overlay.style.opacity    = "1";
-      dom.overlay.style.transition = "";
-    }, 600);
-  }, 400);
+    try {
+      dom.overlay.style.transition = "opacity 0.5s ease";
+      dom.overlay.style.opacity    = "0";
+      dom.overlay.style.pointerEvents = "none";
+      setTimeout(() => {
+        try {
+          dom.overlay.style.display = "none";
+          dom.overlay.style.opacity = "1";
+          dom.overlay.style.transition = "";
+          dom.overlay.style.pointerEvents = "";
+        } catch(e) {}
+      }, 520);
+    } catch(e) { console.error("[handleLoadComplete] overlay hide error", e); }
+  }, 600);
 
-  updateUIReady();
-  updateWelcomeCard();
-  hideSleepBanner();
-  resetIdleTimer();
+  try {
+    updateUIReady();
+    updateWelcomeCard();
+    hideSleepBanner();
+    resetIdleTimer();
+  } catch(e) { console.error("[handleLoadComplete] UI update error", e); }
 }
 
 /* ============================================================
@@ -470,8 +493,8 @@ async function streamChat(msgs) {
 
   const chunks = await engine.chat.completions.create({
     messages: msgs,
-    temperature: 0.6,   // lower = less sampling math = faster
-    top_p: 1.0,         // skip nucleus sampling = faster
+    temperature: 0.7,
+    top_p: 0.95,
     max_tokens: 1024,
     stream: true,
     stream_options: { include_usage: true },
@@ -810,13 +833,6 @@ window.onerror = (msg) => {
 async function boot() {
   cacheDom();
 
-  /* ── Register Download Accelerator Service Worker ── */
-  if ("serviceWorker" in navigator) {
-    navigator.serviceWorker.register("./sw.js")
-      .then(reg => console.log("[SW] Download accelerator registered:", reg.scope))
-      .catch(err => console.warn("[SW] Registration failed (non-critical):", err.message));
-  }
-
   const hardware = await detectHardware();
 
   if (!hardware.webgpu) {
@@ -841,7 +857,7 @@ async function boot() {
   /* Phase 2: Silently background-cache the bigger model */
   if (ok && state.phase2Model && state.phase2Model.id !== PHASE1_MODEL.id) {
     console.log("[Boot] Phase 2 \u2192 Background caching", state.phase2Model.id);
-    // backgroundCachePhase2(); — disabled
+    backgroundCachePhase2();
   }
 }
 
