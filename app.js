@@ -219,52 +219,29 @@ function handleLoadProgress(p) {
 
 /* -- Load Complete → Fade Overlay → Unlock Chat ------------- */
 function handleLoadComplete(modelId) {
-  try {
-    state.isLoading  = false;
-    state.isSleeping = false;
-    state.loadedModel = MODELS.find((m) => m.id === modelId) || state.selectedModel;
+  state.isLoading  = false;
+  state.isSleeping = false;
+  state.loadedModel = MODELS.find((m) => m.id === modelId) || state.selectedModel;
 
-    dom.overlayPercent.textContent  = "100%";
-    dom.progressBarFill.style.width = "100%";
-    dom.overlayStatus.textContent   = "✓ Ready!";
-    dom.overlayStats.textContent    = "";
-  } catch(e) { console.error("[handleLoadComplete] state error", e); }
+  dom.overlayPercent.textContent  = "100%";
+  dom.progressBarFill.style.width = "100%";
+  dom.overlayStatus.textContent   = "Model ready!";
+  dom.overlayStats.textContent    = "";
 
-  // Bulletproof reveal: show chat FIRST, then fade overlay on top
-  try {
-    // 1. Make chat container fully visible immediately via inline styles
-    //    (works regardless of any CSS class issues)
-    const chat = document.getElementById("chat-container");
-    if (chat) {
-      chat.style.display  = "flex";
-      chat.style.opacity  = "1";
-      chat.style.visibility = "visible";
-    }
-  } catch(e) { console.error("[handleLoadComplete] chat reveal error", e); }
-
-  // 2. Fade overlay out on top after short delay so user sees 100%
   setTimeout(() => {
-    try {
-      dom.overlay.style.transition = "opacity 0.5s ease";
-      dom.overlay.style.opacity    = "0";
-      dom.overlay.style.pointerEvents = "none";
-      setTimeout(() => {
-        try {
-          dom.overlay.style.display = "none";
-          dom.overlay.style.opacity = "1";
-          dom.overlay.style.transition = "";
-          dom.overlay.style.pointerEvents = "";
-        } catch(e) {}
-      }, 520);
-    } catch(e) { console.error("[handleLoadComplete] overlay hide error", e); }
-  }, 600);
+    dom.overlay.style.transition = "opacity 0.6s ease";
+    dom.overlay.style.opacity    = "0";
+    setTimeout(() => {
+      dom.overlay.style.display    = "none";
+      dom.overlay.style.opacity    = "1";
+      dom.overlay.style.transition = "";
+    }, 600);
+  }, 400);
 
-  try {
-    updateUIReady();
-    updateWelcomeCard();
-    hideSleepBanner();
-    resetIdleTimer();
-  } catch(e) { console.error("[handleLoadComplete] UI update error", e); }
+  updateUIReady();
+  updateWelcomeCard();
+  hideSleepBanner();
+  resetIdleTimer();
 }
 
 /* ============================================================
@@ -491,15 +468,18 @@ async function streamChat(msgs) {
   const startTime = performance.now();
   let tokenCount = 0;
 
+  // CRITICAL: NO stream_options — usage chunk fires early and causes early return
+  // which leaves the engine worker still running → 2nd message hangs
   const chunks = await engine.chat.completions.create({
     messages: msgs,
-    temperature: 0.7,
-    top_p: 0.95,
+    temperature: 0.6,
+    top_p: 1.0,
     max_tokens: 1024,
     stream: true,
-    stream_options: { include_usage: true },
+    // NO stream_options here — intentional
   });
 
+  // Drain the FULL stream before doing anything else
   for await (const chunk of chunks) {
     const delta = chunk.choices?.[0]?.delta?.content;
     if (delta) {
@@ -507,27 +487,17 @@ async function streamChat(msgs) {
       state.streamBuffer += delta;
       updateBotMessage(state.streamBuffer, true);
     }
-    if (chunk.usage) {
-      const elapsed = performance.now() - startTime;
-      finishStream({
-        tokens: chunk.usage.completion_tokens || tokenCount,
-        prompt_tokens: chunk.usage.prompt_tokens || 0,
-        ms: Math.round(elapsed),
-        tokensPerSecond: Math.round(((chunk.usage.completion_tokens || tokenCount) / elapsed) * 1000),
-      });
-      return;
-    }
+    // Never return early — always let the loop finish naturally
   }
 
-  /* Fallback if no usage chunk came */
-  if (state.isGenerating) {
-    const elapsed = performance.now() - startTime;
-    finishStream({
-      tokens: tokenCount, prompt_tokens: 0,
-      ms: Math.round(elapsed),
-      tokensPerSecond: tokenCount > 0 ? Math.round((tokenCount / elapsed) * 1000) : 0,
-    });
-  }
+  // Only call finishStream ONCE, AFTER the loop is fully done
+  const elapsed = performance.now() - startTime;
+  finishStream({
+    tokens: tokenCount,
+    prompt_tokens: 0,
+    ms: Math.round(elapsed),
+    tokensPerSecond: tokenCount > 0 ? Math.round((tokenCount / elapsed) * 1000) : 0,
+  });
 }
 
 function finishStream(stats) {
