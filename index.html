@@ -8,39 +8,44 @@
 
   <!-- PWA -->
   <link rel="manifest" href="./manifest.json">
-  <meta name="theme-color" content="#0a0a0a">
+  <meta name="theme-color" content="#131314">
   <meta name="mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
   <meta name="apple-mobile-web-app-title" content="NeonLlama">
 
-  <!-- Performance: Preconnect + Preload -->
-  <link rel="preconnect" href="https://esm.run" crossorigin>
+  <!-- Performance -->
+  <link rel="preconnect" href="https://cdn.jsdelivr.net" crossorigin>
   <link rel="preconnect" href="https://huggingface.co" crossorigin>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link rel="modulepreload" href="./worker.js">
-  <link href="https://fonts.googleapis.com/css2?family=Rajdhani:wght@600;700&family=Inter:wght@400;500&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=Google+Sans:wght@400;500;600&family=Google+Sans+Text:wght@400;500&display=swap" rel="stylesheet">
 
   <style>
-    /* ── CSS Reset & Variables ──────────────────────────────── */
+    /* ── Reset ──────────────────────────────────────────────── */
     *, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; }
 
     :root {
-      --bg:           #0a0a0a;
-      --surface:      #111111;
-      --surface2:     #1a1a1a;
-      --accent:       #c8f000;
-      --accent-dim:   #8aaa00;
-      --accent-glow:  rgba(200, 240, 0, 0.3);
-      --text:         #e8e8e8;
-      --text-muted:   #555555;
-      --user-bubble:  #1c1c1c;
-      --bot-bubble:   #0d0d0d;
-      --border:       #222222;
-      --error:        #ff4444;
-      --success:      #00ff88;
-      /* safe area for iPhone notch / home bar */
+      --bg:            #131314;
+      --surface:       #1e1f20;
+      --surface-hover: #282a2c;
+      --surface-high:  #303134;
+      --accent:        #8ab4f8;
+      --accent-soft:   rgba(138,180,248,0.12);
+      --accent-hover:  #aecbfa;
+      --text:          #e3e3e3;
+      --text-secondary:#9aa0a6;
+      --text-dim:      #5f6368;
+      --border:        #3c4043;
+      --border-light:  #5f6368;
+      --error:         #f28b82;
+      --error-bg:      rgba(242,139,130,0.08);
+      --success:       #81c995;
+      --user-bg:       #004a77;
+      --radius:        24px;
+      --radius-sm:     16px;
+      --radius-xs:     12px;
       --sat: env(safe-area-inset-top, 0px);
       --sab: env(safe-area-inset-bottom, 0px);
       --sal: env(safe-area-inset-left, 0px);
@@ -51,11 +56,10 @@
       height: 100%;
       height: -webkit-fill-available;
       overflow: hidden;
-      font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+      font-family: 'Google Sans Text', 'Google Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
       background: var(--bg);
       color: var(--text);
       -webkit-font-smoothing: antialiased;
-      -moz-osx-font-smoothing: grayscale;
       -webkit-tap-highlight-color: transparent;
       touch-action: manipulation;
     }
@@ -69,58 +73,45 @@
       flex-direction: column;
       align-items: center;
       justify-content: center;
-      background:
-        repeating-linear-gradient(
-          0deg,
-          transparent,
-          transparent 2px,
-          rgba(0,0,0,0.08) 2px,
-          rgba(0,0,0,0.08) 4px
-        ),
-        var(--bg);
-      transition: opacity 0.5s ease;
-    }
-
-    .overlay.fade-out {
-      opacity: 0;
-      pointer-events: none;
+      background: var(--bg);
+      gap: 8px;
     }
 
     .overlay-logo {
-      font-family: 'Rajdhani', sans-serif;
-      font-weight: 700;
-      font-size: 3rem;
-      color: var(--accent);
-      letter-spacing: 2px;
-      text-shadow: 0 0 20px var(--accent-glow), 0 0 40px var(--accent-glow);
-      margin-bottom: 4px;
-      user-select: none;
+      font-family: 'Google Sans', sans-serif;
+      font-weight: 600;
+      font-size: 2rem;
+      background: linear-gradient(135deg, #8ab4f8, #c58af9, #f28b82);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      background-clip: text;
+      margin-bottom: 2px;
     }
 
     .overlay-subtitle {
-      font-size: 0.9rem;
-      color: var(--text-muted);
+      font-size: 0.85rem;
+      color: var(--text-secondary);
       margin-bottom: 40px;
     }
 
     .overlay-percent {
-      font-family: 'Rajdhani', sans-serif;
-      font-weight: 700;
-      font-size: 5rem;
-      color: var(--accent);
-      text-shadow: 0 0 30px var(--accent-glow);
+      font-family: 'Google Sans', sans-serif;
+      font-weight: 600;
+      font-size: 3.5rem;
+      background: linear-gradient(135deg, #8ab4f8, #c58af9);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      background-clip: text;
       line-height: 1;
-      margin-bottom: 20px;
+      margin-bottom: 16px;
     }
 
-    /* ── GTA Progress Bar ──────────────────────────────────── */
     .progress-bar-track {
-      width: 380px;
-      max-width: 85vw;
-      height: 22px;
-      background: var(--surface2);
-      border: 1px solid var(--border);
-      border-radius: 3px;
+      width: 340px;
+      max-width: 80vw;
+      height: 4px;
+      background: var(--surface-high);
+      border-radius: 2px;
       overflow: hidden;
       margin-bottom: 24px;
     }
@@ -128,35 +119,19 @@
     .progress-bar-fill {
       height: 100%;
       width: 0%;
-      background: var(--accent);
-      background-image: repeating-linear-gradient(
-        90deg,
-        transparent,
-        transparent 28px,
-        rgba(0,0,0,0.35) 28px,
-        rgba(0,0,0,0.35) 32px
-      );
-      box-shadow: 0 0 14px var(--accent-glow),
-                  0 0 35px var(--accent-glow);
-      transition: width 0.25s ease;
-      animation: glow-pulse 1.5s ease-in-out infinite alternate;
-    }
-
-    @keyframes glow-pulse {
-      from { box-shadow: 0 0 8px var(--accent-glow); }
-      to   { box-shadow: 0 0 28px var(--accent-glow), 0 0 55px var(--accent-glow); }
+      background: linear-gradient(90deg, #8ab4f8, #c58af9);
+      border-radius: 2px;
+      transition: width 0.3s ease;
     }
 
     .overlay-status {
-      font-size: 0.95rem;
+      font-size: 0.9rem;
       color: var(--text);
-      margin-bottom: 6px;
     }
 
     .overlay-stats {
-      font-size: 0.82rem;
-      color: var(--text-muted);
-      margin-bottom: 12px;
+      font-size: 0.8rem;
+      color: var(--text-secondary);
       font-variant-numeric: tabular-nums;
     }
 
@@ -167,51 +142,51 @@
       transition: opacity 0.5s ease;
     }
 
-    /* ── Overlay Error ─────────────────────────────────────── */
+    /* Overlay Error */
     .overlay-error {
       display: none;
       text-align: center;
-      margin-top: 20px;
-      padding: 16px 24px;
-      background: rgba(255, 68, 68, 0.08);
-      border: 1px solid rgba(255, 68, 68, 0.25);
-      border-radius: 8px;
-      max-width: 400px;
+      margin-top: 24px;
+      padding: 20px 28px;
+      background: var(--error-bg);
+      border: 1px solid rgba(242,139,130,0.2);
+      border-radius: var(--radius-sm);
+      max-width: 420px;
     }
 
     .overlay-error-text {
       color: var(--error);
       font-size: 0.88rem;
-      margin-bottom: 12px;
+      margin-bottom: 16px;
       word-break: break-word;
+      line-height: 1.5;
     }
 
     .overlay-error button {
-      padding: 8px 20px;
+      padding: 10px 24px;
       border: none;
-      border-radius: 4px;
-      font-family: 'Inter', sans-serif;
+      border-radius: 20px;
+      font-family: 'Google Sans', sans-serif;
       font-weight: 500;
       font-size: 0.85rem;
       cursor: pointer;
       margin: 0 4px;
-      transition: background 0.2s;
+      transition: all 0.2s;
     }
 
     #overlay-retry-btn {
       background: var(--accent);
-      color: #000;
+      color: #131314;
     }
-    #overlay-retry-btn:hover { background: #d4ff00; }
+    #overlay-retry-btn:hover { background: var(--accent-hover); }
 
     #overlay-fallback-btn {
-      background: var(--surface2);
+      background: var(--surface-high);
       color: var(--text);
-      border: 1px solid var(--border);
     }
-    #overlay-fallback-btn:hover { background: #222; }
+    #overlay-fallback-btn:hover { background: var(--surface-hover); }
 
-    /* ── WebGPU Error Screen ───────────────────────────────── */
+    /* ── WebGPU / Mobile Error Screens ─────────────────────── */
     .webgpu-error {
       position: fixed;
       inset: 0;
@@ -226,42 +201,43 @@
     }
 
     .webgpu-error h1 {
-      font-family: 'Rajdhani', sans-serif;
-      font-size: 2.4rem;
+      font-family: 'Google Sans', sans-serif;
+      font-size: 1.8rem;
       color: var(--error);
-      margin-bottom: 12px;
+      margin-bottom: 16px;
+      font-weight: 500;
     }
 
     .webgpu-error p {
-      color: var(--text-muted);
-      font-size: 1rem;
+      color: var(--text-secondary);
+      font-size: 0.95rem;
       max-width: 440px;
-      line-height: 1.6;
+      line-height: 1.7;
       margin-bottom: 20px;
     }
 
     .webgpu-error a {
       display: inline-block;
-      padding: 12px 28px;
+      padding: 12px 32px;
       background: var(--accent);
-      color: #000;
-      font-weight: 600;
-      font-size: 1rem;
+      color: #131314;
+      font-family: 'Google Sans', sans-serif;
+      font-weight: 500;
+      font-size: 0.95rem;
       text-decoration: none;
-      border-radius: 6px;
+      border-radius: 20px;
       transition: background 0.2s;
     }
-    .webgpu-error a:hover { background: #d4ff00; }
+    .webgpu-error a:hover { background: var(--accent-hover); }
 
-    /* ── Chat Container ────────────────────────────────────── */
+    /* ── App Shell ─────────────────────────────────────────── */
     .chat-container {
       display: flex;
       flex-direction: column;
       height: 100vh;
-      height: 100dvh;                    /* mobile: excludes address bar */
-      max-width: 800px;
+      height: 100dvh;
+      max-width: 100%;
       margin: 0 auto;
-      padding: 0;
     }
 
     /* ── Header ────────────────────────────────────────────── */
@@ -269,315 +245,35 @@
       display: flex;
       align-items: center;
       justify-content: space-between;
-      padding: 12px 20px;
-      padding-top: calc(12px + var(--sat));     /* notch clearance on iPhone */
-      border-bottom: 1px solid var(--border);
-      background: var(--surface);
+      padding: 12px 24px;
+      padding-top: calc(12px + var(--sat));
+      background: var(--bg);
       flex-shrink: 0;
+      border-bottom: 1px solid var(--surface);
     }
 
     .chat-header-logo {
-      font-family: 'Rajdhani', sans-serif;
-      font-weight: 700;
-      font-size: 1.5rem;
-      color: var(--accent);
-      letter-spacing: 1px;
+      font-family: 'Google Sans', sans-serif;
+      font-weight: 600;
+      font-size: 1.25rem;
+      background: linear-gradient(135deg, #8ab4f8, #c58af9);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      background-clip: text;
+    }
+
+    .chat-header-right {
+      display: flex;
+      align-items: center;
+      gap: 10px;
     }
 
     .chat-header-badge {
       font-size: 0.72rem;
-      color: var(--text-muted);
-      background: var(--surface2);
-      padding: 3px 10px;
-      border-radius: 20px;
-      border: 1px solid var(--border);
-    }
-
-    /* ── Messages Area ─────────────────────────────────────── */
-    .messages-area {
-      flex: 1;
-      overflow-y: auto;
-      padding: 20px;
-      display: flex;
-      flex-direction: column;
-      gap: 16px;
-      scroll-behavior: smooth;
-    }
-
-    .messages-area::-webkit-scrollbar { width: 6px; }
-    .messages-area::-webkit-scrollbar-track { background: transparent; }
-    .messages-area::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
-    .messages-area::-webkit-scrollbar-thumb:hover { background: #333; }
-
-    /* ── Welcome Card ──────────────────────────────────────── */
-    .welcome-card {
-      display: block;
-      align-self: center;
-      text-align: center;
-      padding: 40px 32px;
+      color: var(--text-dim);
       background: var(--surface);
-      border: 1px solid var(--border);
-      border-radius: 16px;
-      margin: auto 0;
-      max-width: 420px;
-      width: 100%;
-    }
-
-    .welcome-icon {
-      font-size: 3rem;
-      margin-bottom: 8px;
-    }
-
-    .welcome-title {
-      font-family: 'Rajdhani', sans-serif;
-      font-weight: 700;
-      font-size: 1.8rem;
-      color: var(--accent);
-      margin-bottom: 16px;
-    }
-
-    .welcome-text {
-      font-size: 0.92rem;
-      color: var(--text-muted);
-      line-height: 1.7;
-      margin-bottom: 16px;
-    }
-
-    .welcome-brand {
-      display: inline-block;
-      padding: 4px 14px;
-      background: var(--surface2);
-      border: 1px solid var(--border);
+      padding: 5px 12px;
       border-radius: 20px;
-      font-size: 0.82rem;
-      color: var(--accent-dim);
-    }
-
-    /* ── Message Bubbles ───────────────────────────────────── */
-    .msg-bubble {
-      max-width: 85%;
-      padding: 12px 16px;
-      border-radius: 12px;
-      animation: fadeIn 0.2s ease;
-    }
-
-    @keyframes fadeIn {
-      from { opacity: 0; transform: translateY(6px); }
-      to   { opacity: 1; transform: translateY(0); }
-    }
-
-    .msg-user {
-      align-self: flex-end;
-      background: var(--user-bubble);
-      border-left: 3px solid var(--accent);
-    }
-
-    .msg-bot {
-      align-self: flex-start;
-      background: var(--bot-bubble);
-      border: 1px solid var(--border);
-    }
-
-    .msg-error {
-      align-self: flex-start;
-      background: rgba(255, 68, 68, 0.06);
-      border: 1px solid rgba(255, 68, 68, 0.25);
-      max-width: 85%;
-      padding: 12px 16px;
-      border-radius: 12px;
-    }
-
-    .msg-label {
-      font-size: 0.72rem;
-      font-weight: 500;
-      color: var(--text-muted);
-      margin-bottom: 4px;
-      text-transform: uppercase;
-      letter-spacing: 0.5px;
-    }
-
-    .msg-content {
-      font-size: 0.92rem;
-      line-height: 1.65;
-      word-wrap: break-word;
-      overflow-wrap: break-word;
-    }
-
-    .msg-content pre {
-      background: var(--surface2);
-      border: 1px solid var(--border);
-      border-radius: 6px;
-      padding: 10px 14px;
-      margin: 8px 0;
-      overflow-x: auto;
-      font-size: 0.84rem;
-    }
-
-    .msg-content code {
-      background: var(--surface2);
-      padding: 1px 5px;
-      border-radius: 3px;
-      font-size: 0.86em;
-    }
-
-    .msg-content pre code {
-      background: none;
-      padding: 0;
-    }
-
-    .msg-stats {
-      font-size: 0.72rem;
-      color: var(--text-muted);
-      margin-top: 8px;
-      font-variant-numeric: tabular-nums;
-    }
-
-    /* ── Blinking Cursor ───────────────────────────────────── */
-    .cursor {
-      color: var(--accent);
-      animation: blink 0.6s step-end infinite;
-      font-weight: 700;
-    }
-
-    @keyframes blink {
-      50% { opacity: 0; }
-    }
-
-    /* ── Error Bubble Buttons ──────────────────────────────── */
-    .retry-btn, .retry-lighter-btn {
-      display: inline-block;
-      margin-top: 8px;
-      margin-right: 6px;
-      padding: 5px 14px;
-      border: none;
-      border-radius: 4px;
-      font-family: 'Inter', sans-serif;
-      font-size: 0.8rem;
-      font-weight: 500;
-      cursor: pointer;
-      transition: background 0.2s;
-    }
-
-    .retry-btn {
-      background: var(--surface2);
-      color: var(--text);
-      border: 1px solid var(--border);
-    }
-    .retry-btn:hover { background: #222; }
-
-    .retry-lighter-btn {
-      background: var(--accent);
-      color: #000;
-    }
-    .retry-lighter-btn:hover { background: #d4ff00; }
-
-    /* ── Input Area ────────────────────────────────────────── */
-    .input-area {
-      flex-shrink: 0;
-      border-top: 1px solid var(--border);
-      background: var(--surface);
-      padding: 12px 16px;
-      padding-bottom: calc(12px + var(--sab));   /* home bar clearance on iPhone */
-      padding-left:  calc(16px + var(--sal));
-      padding-right: calc(16px + var(--sar));
-    }
-
-    .device-info {
-      font-size: 0.72rem;
-      color: var(--text-muted);
-      margin-bottom: 10px;
-      padding: 0 4px;
-      font-variant-numeric: tabular-nums;
-    }
-
-    .input-row {
-      display: flex;
-      align-items: flex-end;
-      gap: 8px;
-    }
-
-    .model-select {
-      flex-shrink: 0;
-      background: var(--surface2);
-      color: var(--text);
-      border: 1px solid var(--border);
-      border-radius: 8px;
-      padding: 8px 10px;
-      font-family: 'Inter', sans-serif;
-      font-size: 0.78rem;
-      outline: none;
-      cursor: pointer;
-      max-width: 220px;
-      transition: border-color 0.2s;
-    }
-
-    .model-select:hover { border-color: var(--accent-dim); }
-    .model-select:focus { border-color: var(--accent); }
-
-    .chat-input {
-      flex: 1;
-      background: var(--surface2);
-      color: var(--text);
-      border: 1px solid var(--border);
-      border-radius: 8px;
-      padding: 10px 14px;
-      font-family: 'Inter', sans-serif;
-      font-size: 16px;                   /* CRITICAL: prevents iOS auto-zoom on focus */
-      line-height: 1.4;
-      resize: none;
-      outline: none;
-      min-height: 44px;                  /* iOS touch target minimum */
-      max-height: 120px;
-      transition: border-color 0.2s;
-      -webkit-appearance: none;          /* remove iOS default styling */
-    }
-
-    .chat-input::placeholder { color: var(--text-muted); }
-    .chat-input:hover { border-color: var(--accent-dim); }
-    .chat-input:focus { border-color: var(--accent); }
-
-    .send-btn {
-      flex-shrink: 0;
-      background: var(--accent);
-      color: #000;
-      border: none;
-      border-radius: 8px;
-      padding: 10px 20px;
-      font-family: 'Inter', sans-serif;
-      font-weight: 600;
-      font-size: 0.9rem;
-      cursor: pointer;
-      transition: background 0.2s, opacity 0.2s;
-      white-space: nowrap;
-      min-height: 44px;                  /* iOS touch target */
-      min-width: 44px;
-      -webkit-tap-highlight-color: transparent;
-    }
-
-    .send-btn:hover:not(:disabled) { background: #d4ff00; }
-    .send-btn:disabled {
-      opacity: 0.5;
-      cursor: not-allowed;
-    }
-
-    .dot-pulse {
-      display: inline-block;
-      animation: dotPulse 1s ease-in-out infinite;
-    }
-
-    @keyframes dotPulse {
-      0%, 100% { opacity: 0.3; }
-      50% { opacity: 1; }
-    }
-
-    /* ── Pulsing loading animation for send button ─────────── */
-    .send-btn:disabled .send-btn-text {
-      animation: pulseOpacity 1.5s ease-in-out infinite;
-    }
-
-    @keyframes pulseOpacity {
-      0%, 100% { opacity: 0.5; }
-      50% { opacity: 1; }
     }
 
     /* ── Upgrade Banner ────────────────────────────────────── */
@@ -586,12 +282,9 @@
       align-items: center;
       justify-content: center;
       gap: 12px;
-      padding: 10px 16px;
-      background: var(--surface);
-      border-top: 1px solid var(--accent);
-      border-bottom: 1px solid var(--border);
+      padding: 10px 20px;
+      background: var(--accent-soft);
       flex-shrink: 0;
-      animation: fadeIn 0.3s ease;
     }
 
     .upgrade-banner-text {
@@ -601,116 +294,449 @@
     }
 
     .upgrade-btn {
-      padding: 5px 14px;
+      padding: 6px 16px;
       border: none;
-      border-radius: 4px;
-      font-family: 'Inter', sans-serif;
+      border-radius: 20px;
+      font-family: 'Google Sans', sans-serif;
       font-size: 0.8rem;
-      font-weight: 600;
+      font-weight: 500;
       cursor: pointer;
-      transition: background 0.2s;
+      transition: all 0.2s;
     }
 
     .upgrade-btn-yes {
       background: var(--accent);
-      color: #000;
+      color: #131314;
     }
-    .upgrade-btn-yes:hover { background: #d4ff00; }
+    .upgrade-btn-yes:hover { background: var(--accent-hover); }
 
     .upgrade-btn-no {
-      background: var(--surface2);
-      color: var(--text-muted);
+      background: transparent;
+      color: var(--text-secondary);
       border: 1px solid var(--border);
     }
-    .upgrade-btn-no:hover { background: #222; }
+    .upgrade-btn-no:hover { background: var(--surface-hover); }
+
+    /* ── Messages Area ─────────────────────────────────────── */
+    .messages-area {
+      flex: 1;
+      overflow-y: auto;
+      overflow-x: hidden;
+      display: flex;
+      flex-direction: column;
+      gap: 0;
+      scroll-behavior: smooth;
+      padding: 0;
+    }
+
+    .messages-area::-webkit-scrollbar { width: 8px; }
+    .messages-area::-webkit-scrollbar-track { background: transparent; }
+    .messages-area::-webkit-scrollbar-thumb { background: var(--surface-high); border-radius: 4px; }
+    .messages-area::-webkit-scrollbar-thumb:hover { background: var(--border); }
+
+    /* ── Welcome Card (Gemini centered) ────────────────────── */
+    .welcome-card {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      text-align: center;
+      margin: auto;
+      padding: 48px 32px;
+      max-width: 600px;
+      width: 100%;
+    }
+
+    .welcome-icon {
+      font-size: 3.5rem;
+      margin-bottom: 16px;
+      filter: drop-shadow(0 0 20px rgba(138,180,248,0.3));
+    }
+
+    .welcome-title {
+      font-family: 'Google Sans', sans-serif;
+      font-weight: 600;
+      font-size: 2rem;
+      background: linear-gradient(135deg, #8ab4f8, #c58af9, #f28b82);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      background-clip: text;
+      margin-bottom: 16px;
+    }
+
+    .welcome-text {
+      font-size: 1rem;
+      color: var(--text-secondary);
+      line-height: 1.8;
+      margin-bottom: 20px;
+    }
+
+    .welcome-brand {
+      display: inline-block;
+      padding: 6px 18px;
+      background: var(--surface);
+      border-radius: 20px;
+      font-size: 0.82rem;
+      color: var(--text-secondary);
+    }
 
     /* ── Sleep Banner ──────────────────────────────────────── */
     .sleep-banner {
       display: none;
       text-align: center;
-      padding: 24px 16px;
-      color: var(--text-muted);
-      font-size: 0.9rem;
-      animation: fadeIn 0.3s ease;
+      padding: 32px 20px;
+      color: var(--text-secondary);
+      font-size: 0.92rem;
     }
 
     .sleep-banner-icon {
       font-size: 2rem;
-      margin-bottom: 6px;
+      margin-bottom: 8px;
     }
 
-    /* ── Responsive ────────────────────────────────────────── */
-    /* ── Mobile (phones) ──────────────────────────────────────── */
-    @media (max-width: 600px) {
-      .overlay-logo    { font-size: 2.2rem; }
-      .overlay-percent { font-size: 3.5rem; }
-      .progress-bar-track { width: 90vw; }
-      .chat-header     { padding: 10px 14px; padding-top: calc(10px + var(--sat)); }
-      .messages-area   { padding: 12px; gap: 12px; }
-      .welcome-card    { padding: 24px 16px; margin: 16px; }
-      .welcome-title   { font-size: 1.5rem; }
-      .model-select    { max-width: 130px; font-size: 0.72rem; }
-      .input-row       { gap: 6px; }
-      .send-btn        { padding: 10px 14px; }
-      .msg-bubble      { max-width: 92%; }
-      .device-info     { font-size: 0.68rem; }
-      /* Bigger tap area for buttons */
-      .upgrade-btn, .retry-btn, .retry-lighter-btn { min-height: 36px; }
+    /* ── Message Bubbles — Gemini Style ────────────────────── */
+    .msg-bubble {
+      padding: 20px 24px;
+      animation: msgFadeIn 0.3s ease;
+      max-width: 100%;
+    }
+
+    @keyframes msgFadeIn {
+      from { opacity: 0; transform: translateY(8px); }
+      to   { opacity: 1; transform: translateY(0); }
+    }
+
+    .msg-user {
+      background: var(--surface);
+    }
+
+    .msg-bot {
+      background: transparent;
+    }
+
+    .msg-error {
+      background: var(--error-bg);
+      padding: 16px 24px;
+    }
+
+    .msg-inner {
+      max-width: 768px;
+      margin: 0 auto;
+      width: 100%;
+    }
+
+    .msg-label {
+      font-size: 0.75rem;
+      font-weight: 500;
+      color: var(--text-dim);
+      margin-bottom: 8px;
+      letter-spacing: 0.3px;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+
+    .msg-label-dot {
+      width: 6px;
+      height: 6px;
+      border-radius: 50%;
+      display: inline-block;
+    }
+
+    .msg-user .msg-label-dot { background: var(--accent); }
+    .msg-bot .msg-label-dot { background: #c58af9; }
+
+    .msg-content {
+      font-size: 0.95rem;
+      line-height: 1.75;
+      word-wrap: break-word;
+      overflow-wrap: break-word;
+      color: var(--text);
+    }
+
+    .msg-content pre {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-xs);
+      padding: 14px 18px;
+      margin: 12px 0;
+      overflow-x: auto;
+      font-size: 0.85rem;
+      font-family: 'Google Sans Mono', 'Fira Code', monospace;
+      line-height: 1.6;
+    }
+
+    .msg-content code {
+      background: var(--surface);
+      padding: 2px 6px;
+      border-radius: 6px;
+      font-size: 0.87em;
+      font-family: 'Google Sans Mono', 'Fira Code', monospace;
+    }
+
+    .msg-content pre code {
+      background: none;
+      padding: 0;
+    }
+
+    .msg-stats {
+      font-size: 0.72rem;
+      color: var(--text-dim);
+      margin-top: 12px;
+      font-variant-numeric: tabular-nums;
+    }
+
+    /* Blinking Cursor */
+    .cursor {
+      color: var(--accent);
+      animation: blink 0.7s step-end infinite;
+      font-weight: 600;
+    }
+    @keyframes blink { 50% { opacity: 0; } }
+
+    /* ── Error Bubble Buttons ──────────────────────────────── */
+    .retry-btn, .retry-lighter-btn {
+      display: inline-block;
+      margin-top: 10px;
+      margin-right: 8px;
+      padding: 8px 18px;
+      border: none;
+      border-radius: 20px;
+      font-family: 'Google Sans', sans-serif;
+      font-size: 0.82rem;
+      font-weight: 500;
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+
+    .retry-btn {
+      background: var(--surface-high);
+      color: var(--text);
+    }
+    .retry-btn:hover { background: var(--surface-hover); }
+
+    .retry-lighter-btn {
+      background: var(--accent);
+      color: #131314;
+    }
+    .retry-lighter-btn:hover { background: var(--accent-hover); }
+
+    /* ── Input Area — Gemini Floating Bar ───────────────────── */
+    .input-area {
+      flex-shrink: 0;
+      padding: 12px 24px;
+      padding-bottom: calc(16px + var(--sab));
+      padding-left:  calc(24px + var(--sal));
+      padding-right: calc(24px + var(--sar));
+      background: var(--bg);
+    }
+
+    .input-wrapper {
+      max-width: 768px;
+      margin: 0 auto;
+    }
+
+    .device-info {
+      font-size: 0.7rem;
+      color: var(--text-dim);
+      margin-bottom: 8px;
+      font-variant-numeric: tabular-nums;
+      text-align: center;
+    }
+
+    .input-bar {
+      display: flex;
+      align-items: flex-end;
+      gap: 0;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 6px 6px 6px 20px;
+      transition: border-color 0.2s;
+    }
+
+    .input-bar:focus-within {
+      border-color: var(--accent);
+    }
+
+    .chat-input {
+      flex: 1;
+      background: transparent;
+      color: var(--text);
+      border: none;
+      padding: 10px 0;
+      font-family: 'Google Sans Text', sans-serif;
+      font-size: 16px;
+      line-height: 1.5;
+      resize: none;
+      outline: none;
+      min-height: 24px;
+      max-height: 160px;
+      -webkit-appearance: none;
+      appearance: none;
+    }
+
+    .chat-input::placeholder { color: var(--text-dim); }
+
+    .send-btn {
+      flex-shrink: 0;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      background: var(--accent);
+      color: #131314;
+      border: none;
+      border-radius: 20px;
+      padding: 10px 20px;
+      font-family: 'Google Sans', sans-serif;
+      font-weight: 500;
+      font-size: 0.85rem;
+      cursor: pointer;
+      transition: all 0.2s;
+      white-space: nowrap;
+      min-height: 40px;
+      min-width: 44px;
+      -webkit-tap-highlight-color: transparent;
+    }
+
+    .send-btn:hover:not(:disabled) { background: var(--accent-hover); transform: scale(1.03); }
+    .send-btn:disabled { background: var(--surface-high); color: var(--text-dim); cursor: not-allowed; }
+
+    .send-btn:disabled .send-btn-text {
+      animation: pulseOpacity 1.5s ease-in-out infinite;
+    }
+
+    @keyframes pulseOpacity {
+      0%, 100% { opacity: 0.6; }
+      50% { opacity: 1; }
+    }
+
+    .input-bottom-row {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-top: 8px;
+      padding: 0 4px;
+    }
+
+    .model-select {
+      background: transparent;
+      color: var(--text-secondary);
+      border: 1px solid var(--border);
+      border-radius: 20px;
+      padding: 5px 12px;
+      font-family: 'Google Sans Text', sans-serif;
+      font-size: 0.75rem;
+      outline: none;
+      cursor: pointer;
+      transition: all 0.2s;
+      max-width: 260px;
+      -webkit-appearance: none;
+      appearance: none;
+    }
+
+    .model-select:hover { border-color: var(--text-dim); }
+    .model-select:focus { border-color: var(--accent); color: var(--text); }
+
+    .model-select option {
+      background: var(--surface);
+      color: var(--text);
+    }
+
+    .input-hint {
+      font-size: 0.7rem;
+      color: var(--text-dim);
+    }
+
+    /* ── Dot Pulse for thinking state ──────────────────────── */
+    .dot-pulse { display: inline-block; animation: dotPulse 1s ease-in-out infinite; }
+    @keyframes dotPulse { 0%, 100% { opacity: 0.3; } 50% { opacity: 1; } }
+
+    @keyframes fadeIn {
+      from { opacity: 0; transform: translateY(6px); }
+      to   { opacity: 1; transform: translateY(0); }
+    }
+
+    /* ═══════════════════════════════════════════════════════════
+       RESPONSIVE — Desktop
+       ═══════════════════════════════════════════════════════════ */
+    @media (min-width: 769px) {
+      .chat-header { padding: 14px 32px; }
+      .input-area  { padding: 16px 32px; padding-bottom: calc(20px + var(--sab)); }
+      .msg-bubble  { padding: 24px 32px; }
+      .welcome-title { font-size: 2.5rem; }
+    }
+
+    /* ═══════════════════════════════════════════════════════════
+       RESPONSIVE — Tablet
+       ═══════════════════════════════════════════════════════════ */
+    @media (max-width: 768px) {
+      .chat-header { padding: 10px 16px; padding-top: calc(10px + var(--sat)); }
+      .input-area  { padding: 10px 16px; padding-bottom: calc(12px + var(--sab)); }
+      .msg-bubble  { padding: 16px 16px; }
+      .welcome-card { padding: 32px 20px; }
+      .welcome-title { font-size: 1.8rem; }
+      .input-bar   { border-radius: 20px; padding-left: 16px; }
+    }
+
+    /* ═══════════════════════════════════════════════════════════
+       RESPONSIVE — Mobile phones
+       ═══════════════════════════════════════════════════════════ */
+    @media (max-width: 480px) {
+      .overlay-logo     { font-size: 1.6rem; }
+      .overlay-percent  { font-size: 2.8rem; }
+      .chat-header-badge { display: none; }
+      .welcome-card     { padding: 24px 16px; }
+      .welcome-title    { font-size: 1.5rem; }
+      .welcome-icon     { font-size: 2.5rem; }
+      .msg-bubble       { padding: 14px 14px; }
+      .msg-content      { font-size: 0.9rem; }
+      .input-bar        { border-radius: 18px; padding: 4px 4px 4px 14px; }
+      .model-select     { max-width: 180px; font-size: 0.7rem; }
+      .input-hint       { display: none; }
+      .upgrade-banner   { flex-wrap: wrap; gap: 8px; padding: 10px 14px; font-size: 0.8rem; }
     }
 
     /* Very small phones */
-    @media (max-width: 400px) {
-      .model-select  { display: none; }
-      .chat-header-badge { display: none; }
+    @media (max-width: 360px) {
+      .model-select { max-width: 140px; }
+      .msg-content  { font-size: 0.87rem; }
     }
 
-    /* Landscape on phones — compact header */
+    /* Landscape on phones */
     @media (max-height: 500px) and (orientation: landscape) {
       .chat-header { padding-top: 6px; padding-bottom: 6px; }
-      .messages-area { padding: 8px 12px; gap: 8px; }
-      .input-area { padding-top: 6px; padding-bottom: calc(6px + var(--sab)); }
+      .input-area  { padding-top: 6px; padding-bottom: calc(6px + var(--sab)); }
       .welcome-card { padding: 16px; }
     }
-  
-    /* ── is-mobile class (added by JS when phone detected) ─── */
-    .is-mobile .msg-bubble       { font-size: 0.88rem; }
-    .is-mobile .chat-input       { font-size: 16px !important; } /* no zoom */
-    .is-mobile .device-info      { display: none; }              /* save space */
-    .is-mobile .overlay-stats    { font-size: 0.78rem; }
+
+    /* ── is-mobile class (added by JS) ─────────────────────── */
+    .is-mobile .device-info { display: none; }
+    .is-mobile .chat-input  { font-size: 16px !important; }
   </style>
 </head>
 <body>
 
-  <!-- ════════════════════════════════════════════════════════
-       WebGPU Error Screen (hidden by default)
-       ════════════════════════════════════════════════════════ -->
+  <!-- ═══ WebGPU Error Screen ═══ -->
   <div class="webgpu-error" id="webgpu-error">
     <h1>WebGPU Not Available</h1>
-    <p>
-      NeonLlama needs WebGPU to run AI models directly in your browser.
-      Your current browser does not support WebGPU.
-    </p>
-    <p>
-      Please use <strong>Google Chrome 113+</strong> or <strong>Microsoft Edge 113+</strong>
-      on a device with a compatible GPU.
-    </p>
+    <p>NeonLlama needs WebGPU to run AI models directly in your browser. Your current browser does not support WebGPU.</p>
+    <p>Please use <strong>Google Chrome 113+</strong> or <strong>Microsoft Edge 113+</strong> on a device with a compatible GPU.</p>
     <a href="https://www.google.com/chrome/" rel="noopener noreferrer">Download Chrome</a>
   </div>
 
-  <!-- Mobile-specific error screen -->
-  <div class="webgpu-error" id="mobile-error" style="display:none; flex-direction:column; padding:32px 24px; max-width:440px; margin:0 auto; text-align:center;">
+  <!-- ═══ Mobile Error Screen ═══ -->
+  <div class="webgpu-error" id="mobile-error" style="display:none;">
     <div style="font-size:3rem; margin-bottom:16px;">📱</div>
-    <h1 id="me-title" style="font-size:1.6rem; margin-bottom:16px;"></h1>
-    <p id="me-body" style="font-size:0.95rem; color:#888; line-height:1.7; margin-bottom:28px;"></p>
+    <h1 id="me-title"></h1>
+    <p id="me-body"></p>
     <div id="me-action"></div>
   </div>
 
-  <!-- ════════════════════════════════════════════════════════
-       Loading Overlay (visible on start)
-       ════════════════════════════════════════════════════════ -->
+  <!-- ═══ Loading Overlay ═══ -->
   <div class="overlay" id="loading-overlay">
-    <div class="overlay-logo" id="overlay-title">⚡ LlamaChat</div>
-    <div class="overlay-subtitle" id="overlay-subtitle">Powered by Meta &amp; Microsoft &middot; In-Browser</div>
+    <div class="overlay-logo" id="overlay-title">NeonLlama</div>
+    <div class="overlay-subtitle" id="overlay-subtitle">Private AI · Runs in Your Browser</div>
 
     <div class="overlay-percent" id="overlay-percent">0%</div>
 
@@ -729,39 +755,38 @@
     </div>
   </div>
 
-  <!-- ════════════════════════════════════════════════════════
-       Chat Application
-       ════════════════════════════════════════════════════════ -->
+  <!-- ═══ Chat Application ═══ -->
   <div class="chat-container" id="chat-container">
 
     <!-- Header -->
     <div class="chat-header">
       <div class="chat-header-logo">NeonLlama</div>
-      <div class="chat-header-badge">100% Private &middot; On-Device AI</div>
+      <div class="chat-header-right">
+        <div class="chat-header-badge">On-Device AI</div>
+      </div>
     </div>
 
-    <!-- Upgrade Banner (shown when Phase 2 model is cached) -->
+    <!-- Upgrade Banner -->
     <div class="upgrade-banner" id="upgrade-banner">
       <span class="upgrade-banner-text" id="upgrade-banner-text"></span>
-      <button class="upgrade-btn upgrade-btn-yes" id="upgrade-yes-btn">Upgrade Now</button>
-      <button class="upgrade-btn upgrade-btn-no" id="upgrade-no-btn">Stay on Current</button>
+      <button class="upgrade-btn upgrade-btn-yes" id="upgrade-yes-btn">Upgrade</button>
+      <button class="upgrade-btn upgrade-btn-no" id="upgrade-no-btn">Later</button>
     </div>
 
     <!-- Messages -->
     <div class="messages-area" id="messages-area">
-      <!-- Sleep Banner (shown when idle auto-unloaded) -->
+      <!-- Sleep Banner -->
       <div class="sleep-banner" id="sleep-banner">
-        <div class="sleep-banner-icon">&#128164;</div>
-        Model sleeping to save battery &mdash; type to wake
+        <div class="sleep-banner-icon">💤</div>
+        Model sleeping to save memory — type to wake
       </div>
 
       <div class="welcome-card" id="welcome-card">
-        <div class="welcome-icon">&#129433;</div>
-        <div class="welcome-title">NeonLlama</div>
+        <div class="welcome-icon">🦙</div>
+        <div class="welcome-title">Hello, I'm NeonLlama</div>
         <div class="welcome-text">
-          Your private AI assistant<br>
-          Runs 100% on your device<br>
-          No internet needed after model loads
+          Your private AI assistant.<br>
+          Everything runs on your device — nothing leaves your browser.
         </div>
         <div class="welcome-brand" id="welcome-brand">Powered by Meta</div>
       </div>
@@ -769,24 +794,28 @@
 
     <!-- Input -->
     <div class="input-area" id="input-area">
-      <div class="device-info" id="device-info">Detecting device...</div>
-      <div class="input-row">
-        <select class="model-select" id="model-select" title="Select AI Model"></select>
-        <textarea
-          class="chat-input"
-          id="chat-input"
-          placeholder="Loading model..."
-          rows="1"
-          disabled
-        ></textarea>
-        <button class="send-btn" id="send-btn" disabled>
-          <span id="send-btn-text">Select Model &uarr;</span>
-        </button>
+      <div class="input-wrapper">
+        <div class="device-info" id="device-info">Detecting device...</div>
+        <div class="input-bar">
+          <textarea
+            class="chat-input"
+            id="chat-input"
+            placeholder="Ask me anything..."
+            rows="1"
+            disabled
+          ></textarea>
+          <button class="send-btn" id="send-btn" disabled>
+            <span id="send-btn-text">Select Model</span>
+          </button>
+        </div>
+        <div class="input-bottom-row">
+          <select class="model-select" id="model-select" title="Select AI Model"></select>
+          <span class="input-hint">Shift+Enter for new line</span>
+        </div>
       </div>
     </div>
   </div>
 
-  <!-- App Script -->
   <script src="./app.js" type="module"></script>
 </body>
 </html>

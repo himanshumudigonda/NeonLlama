@@ -820,7 +820,7 @@ function showMobileError(type) {
     action.innerHTML   = '<a href="https://play.google.com/store/apps/details?id=com.android.chrome" target="_blank" rel="noopener">Get Chrome for Android</a>';
   } else {
     title.textContent  = "Enable WebGPU in Chrome";
-    body.innerHTML     = "Your Android's Chrome needs WebGPU turned on.<br><br>1. Open <strong>chrome://flags</strong><br>2. Search <strong>"WebGPU"</strong><br>3. Set to <strong>Enabled</strong><br>4. Tap Relaunch";
+    body.innerHTML     = 'Your Android\'s Chrome needs WebGPU turned on.<br><br>1. Open <strong>chrome://flags</strong><br>2. Search <strong>"WebGPU"</strong><br>3. Set to <strong>Enabled</strong><br>4. Tap Relaunch';
     action.innerHTML   = '<a href="chrome://flags/#enable-unsafe-webgpu" rel="noopener">Open Chrome Flags</a>';
   }
   el.style.display = "flex";
